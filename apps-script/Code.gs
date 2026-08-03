@@ -90,6 +90,11 @@ function syncProjects_(incomingProjects) {
     const deletedProjectSheet = ensureSheet_(spreadsheet, 'DeletedProjects', DELETED_PROJECT_HEADERS);
     const existingRows = readRows_(projectSheet, PROJECT_HEADERS);
     const existingById = Object.fromEntries(existingRows.map(record => [record.id, record]));
+    const existingLogsByProject = {};
+    readRows_(logSheet, LOG_HEADERS).forEach(log => {
+      if (!existingLogsByProject[log.projectId]) existingLogsByProject[log.projectId] = [];
+      existingLogsByProject[log.projectId].push(log);
+    });
     const deletedIds = new Set(readRows_(deletedProjectSheet, DELETED_PROJECT_HEADERS).map(record => String(record.id)));
 
     incomingProjects.forEach(project => {
@@ -98,9 +103,12 @@ function syncProjects_(incomingProjects) {
       const existing = existingById[project.id];
       const incomingTime = Date.parse(project.updatedAt || '') || 0;
       const existingTime = Date.parse(existing && existing.updatedAt || '') || 0;
-      if (!existing || incomingTime >= existingTime) {
+      if (!existing || incomingTime > existingTime) {
+        const incomingLogs = Array.isArray(project.logs) ? project.logs : [];
         upsertProject_(projectSheet, project);
-        replaceProjectLogs_(logSheet, project.id, Array.isArray(project.logs) ? project.logs : []);
+        if (!existing || !logsEquivalent_(existingLogsByProject[project.id] || [], incomingLogs)) {
+          replaceProjectLogs_(logSheet, project.id, incomingLogs);
+        }
       }
     });
     SpreadsheetApp.flush();
@@ -207,6 +215,27 @@ function replaceProjectLogs_(sheet, projectId, logs) {
     level_(log.effort, 0)
   ]);
   sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, LOG_HEADERS.length).setValues(rows);
+}
+
+function logsEquivalent_(storedLogs, incomingLogs) {
+  const normalizeStored = log => [
+    String(log.id || ''),
+    String(log.person).toLowerCase() === 'riku' || log.person === 'B' ? 'B' : 'A',
+    String(log.type || 'instrument'),
+    String(log.name || ''),
+    Math.max(1, Number(log.count) || 1),
+    Math.max(0, Number(log.duration) || 0),
+    Math.max(0, Number(log.events) || 0),
+    String(log.details || ''),
+    String(log.createdAt || ''),
+    level_(log.scope, 0),
+    level_(log.effort, 0)
+  ];
+  const normalizeIncoming = log => normalizeStored({
+    ...log,
+    person: log.person === 'B' ? 'B' : 'A'
+  });
+  return JSON.stringify(storedLogs.map(normalizeStored)) === JSON.stringify(incomingLogs.map(normalizeIncoming));
 }
 
 function readProjects_(projectSheet, logSheet) {

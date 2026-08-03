@@ -441,7 +441,7 @@
         persistProjects();
         document.getElementById('save-state').textContent = 'SAVED LOCALLY / SYNC PENDING';
         scheduleAutoSync();
-      }, 180);
+      }, 100);
     }
 
     function captureProjectFields(project) {
@@ -841,7 +841,7 @@
       return result;
     }
 
-    function scheduleAutoSync(delay = 2000) {
+    function scheduleAutoSync(delay = 500) {
       if (!getStoredApiConnection()) return;
       clearTimeout(autoSyncTimer);
       autoSyncTimer = setTimeout(() => syncWithSheets({ silent: true }), delay);
@@ -900,7 +900,7 @@
         button.textContent = '自動同期';
         if (syncQueued) {
           syncQueued = false;
-          scheduleAutoSync(300);
+          scheduleAutoSync(150);
         }
       }
     }
@@ -1263,9 +1263,12 @@
     document.querySelectorAll('.task-row').forEach(syncTaskRow);
     calculateSplit();
     renderDashboard();
-    setInterval(() => syncWithSheets({ silent: true }), 60000);
+    if (getStoredApiConnection()) scheduleAutoSync(100);
+    setInterval(() => {
+      if (document.visibilityState === 'visible') syncWithSheets({ silent: true });
+    }, 10000);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') scheduleAutoSync(500);
+      if (document.visibilityState === 'visible') scheduleAutoSync(100);
     });
   </script>
 </body>
