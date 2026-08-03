@@ -256,7 +256,18 @@
         <div class="mt-6 flex justify-end gap-3"><button id="api-cancel" type="button" class="rounded-lg border border-line px-4 py-2.5 text-xs font-bold text-slate-400 hover:text-white">キャンセル</button><button type="submit" class="rounded-lg bg-acid px-5 py-2.5 text-xs font-extrabold text-ink">接続する</button></div>
       </form>
     </div>
-+
+
+    <div id="delete-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+      <form id="delete-form" class="w-full max-w-md rounded-2xl border border-rose-500/30 bg-panel p-6 shadow-2xl sm:p-7">
+        <p class="font-mono text-[10px] uppercase tracking-[.18em] text-rose-400">Permanent delete</p>
+        <h2 id="delete-modal-title" class="mt-2 text-xl font-bold">アーカイブ案件を消去</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-400"><span id="delete-project-name" class="font-bold text-slate-100"></span> を一覧から消去します。案件情報と制作ログは削除履歴シートへ保管されます。</p>
+        <label class="mt-6 block"><span class="mb-2 block text-xs text-slate-300">削除パス（API_KEY）</span><input id="delete-api-key" type="password" required autocomplete="off" class="w-full rounded-lg border border-line bg-black/30 px-4 py-3 text-sm outline-none focus:border-rose-400" placeholder="API_KEYを入力"></label>
+        <p id="delete-modal-error" class="mt-3 hidden text-xs text-rose-400"></p>
+        <div class="mt-6 flex justify-end gap-3"><button id="delete-cancel" type="button" class="rounded-lg border border-line px-4 py-2.5 text-xs font-bold text-slate-400 hover:text-white">キャンセル</button><button id="delete-submit" type="submit" class="rounded-lg bg-rose-500 px-5 py-2.5 text-xs font-extrabold text-white hover:bg-rose-400 disabled:opacity-50">消去する</button></div>
+      </form>
+    </div>
+
     <div id="toast" class="pointer-events-none fixed bottom-40 left-1/2 z-50 -translate-x-1/2 translate-y-3 rounded-lg border border-acid/20 bg-[#171b22] px-4 py-3 text-xs font-semibold text-acid opacity-0 shadow-xl transition duration-200" role="status" aria-live="polite">コピーしました</div>
   </div>
 
@@ -473,7 +484,10 @@
           </button>
           <div class="flex items-center justify-between border-t border-line px-5 py-3">
             <span class="font-mono text-[9px] text-slate-600">${project.updatedAt ? new Date(project.updatedAt).toLocaleDateString('ja-JP') : '—'}</span>
-            <button type="button" data-${archived ? 'restore' : 'archive'}-project="${escapeHtml(project.id)}" class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-slate-400 transition hover:border-acid/40 hover:text-acid">${archived ? '復元' : 'アーカイブ'}</button>
+            <div class="flex items-center gap-2">
+              <button type="button" data-${archived ? 'restore' : 'archive'}-project="${escapeHtml(project.id)}" class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-slate-400 transition hover:border-acid/40 hover:text-acid">${archived ? '復元' : 'アーカイブ'}</button>
+              ${archived ? `<button type="button" data-delete-project="${escapeHtml(project.id)}" class="rounded-md border border-rose-500/20 px-2 py-1.5 text-[10px] font-semibold text-rose-400 transition hover:border-rose-400 hover:bg-rose-500/10" aria-label="${escapeHtml(project.title)}を消去">消去</button>` : ''}
+            </div>
           </div>
         </article>`;
     }
@@ -669,6 +683,31 @@
       if (apiConnectionResolve) apiConnectionResolve(connection);
       apiConnectionResolve = null;
     }
+
+    let pendingDeleteProjectId = null;
+
+    function openDeleteModal(project) {
+      const apiUrl = localStorage.getItem(API_URL_KEY) || '';
+      if (!apiUrl) {
+        showToast('先に「自動同期」からGoogle Sheets接続を設定してください');
+        return;
+      }
+      pendingDeleteProjectId = project.id;
+      document.getElementById('delete-project-name').textContent = `「${project.title}」`;
+      document.getElementById('delete-api-key').value = '';
+      document.getElementById('delete-modal-error').classList.add('hidden');
+      const modal = document.getElementById('delete-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      setTimeout(() => document.getElementById('delete-api-key').focus(), 0);
+    }
+
+    function closeDeleteModal() {
+      const modal = document.getElementById('delete-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      pendingDeleteProjectId = null;
+    }
     let parsedLogDrafts = [];
 
     function levelOptions(levels, selected) {
@@ -825,10 +864,10 @@
     async function syncWithSheets(options = {}) {
       const silent = options && options.silent === true;
       const connection = silent ? getStoredApiConnection() : await requestApiConnection();
-      if (!connection) return;
+      if (!connection) return false;
       if (syncInFlight) {
         syncQueued = true;
-        return;
+        return false;
       }
       syncInFlight = true;
       const { apiUrl, apiKey } = connection;
@@ -850,9 +889,11 @@
         renderDashboard();
         if (activeProjectId) document.getElementById('save-state').textContent = 'SAVED / SHEETS SYNCED';
         if (!silent) showToast(`${projects.length}件をGoogle Sheetsと同期しました`);
+        return true;
       } catch (error) {
         if (activeProjectId) document.getElementById('save-state').textContent = 'LOCAL SAVED / SYNC ERROR';
         if (!silent) showToast(`同期エラー: ${error.message}`);
+        return false;
       } finally {
         syncInFlight = false;
         button.disabled = false;
@@ -1038,6 +1079,38 @@
     document.getElementById('api-modal').addEventListener('click', event => {
       if (event.target.id === 'api-modal') closeApiModal(null);
     });
+    document.getElementById('delete-cancel').addEventListener('click', closeDeleteModal);
+    document.getElementById('delete-modal').addEventListener('click', event => {
+      if (event.target.id === 'delete-modal') closeDeleteModal();
+    });
+    document.getElementById('delete-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const projectId = pendingDeleteProjectId;
+      const apiUrl = localStorage.getItem(API_URL_KEY) || '';
+      const apiKey = document.getElementById('delete-api-key').value;
+      const errorElement = document.getElementById('delete-modal-error');
+      const submitButton = document.getElementById('delete-submit');
+      if (!projectId || !apiUrl || !apiKey) return;
+      submitButton.disabled = true;
+      submitButton.textContent = '消去中…';
+      errorElement.classList.add('hidden');
+      try {
+        const body = new URLSearchParams({ action: 'deleteProject', apiKey, payload: JSON.stringify({ projectId }) });
+        const result = await postToAppsScript(apiUrl, body);
+        if (!result.ok) throw new Error(result.error || '案件を消去できませんでした。');
+        projects = mergeSyncedProjects(result.projects);
+        persistProjects();
+        renderDashboard();
+        closeDeleteModal();
+        showToast(`案件を消去し、${Number(result.archivedLogCount) || 0}件のログを履歴へ保管しました`);
+      } catch (error) {
+        errorElement.textContent = error.message === 'Unauthorized.' ? 'API_KEYが一致しません。' : `消去エラー: ${error.message}`;
+        errorElement.classList.remove('hidden');
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = '消去する';
+      }
+    });
     document.getElementById('new-project-btn').addEventListener('click', () => {
       const project = makeProject();
       projects.push(project);
@@ -1048,9 +1121,15 @@
       document.getElementById('project-title').select();
     });
 
-    document.getElementById('dashboard-view').addEventListener('click', event => {
+    document.getElementById('dashboard-view').addEventListener('click', async event => {
       const archiveButton = event.target.closest('[data-archive-project]');
       const restoreButton = event.target.closest('[data-restore-project]');
+      const deleteButton = event.target.closest('[data-delete-project]');
+      if (deleteButton) {
+        const project = projects.find(item => item.id === deleteButton.dataset.deleteProject);
+        if (project) openDeleteModal(project);
+        return;
+      }
       if (archiveButton) {
         const project = projects.find(item => item.id === archiveButton.dataset.archiveProject);
         if (!project || !confirm('「' + project.title + '」をアーカイブしますか？')) return;
@@ -1060,8 +1139,8 @@
         project.updatedAt = project.archivedAt;
         persistProjects();
         renderDashboard();
-        scheduleAutoSync();
-        showToast('案件をアーカイブしました');
+        const synced = getStoredApiConnection() ? await syncWithSheets({ silent: true }) : false;
+        showToast(synced ? '案件をアーカイブし、シートへ保存しました' : '案件をアーカイブしました。接続後にシートへ同期してください');
         return;
       }
       if (restoreButton) {
@@ -1072,8 +1151,8 @@
         project.updatedAt = new Date().toISOString();
         persistProjects();
         renderDashboard();
-        scheduleAutoSync();
-        showToast('案件を一覧へ復元しました');
+        const synced = getStoredApiConnection() ? await syncWithSheets({ silent: true }) : false;
+        showToast(synced ? '案件を復元し、シートへ保存しました' : '案件を一覧へ復元しました。接続後に同期してください');
         return;
       }
       const openButton = event.target.closest('[data-open-project]');

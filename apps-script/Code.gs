@@ -7,6 +7,8 @@ const LOG_HEADERS = [
   'id', 'projectId', 'person', 'type', 'name', 'count', 'duration',
   'events', 'details', 'createdAt', 'scope', 'effort'
 ];
+const DELETED_PROJECT_HEADERS = PROJECT_HEADERS.concat(['deletedAt']);
+const DELETED_LOG_HEADERS = LOG_HEADERS.concat(['projectTitle', 'deletedAt']);
 
 /**
  * Run once from the Apps Script editor after setting SHEET_ID and API_KEY
@@ -16,6 +18,8 @@ function setupDatabase() {
   const spreadsheet = getSpreadsheet_();
   ensureSheet_(spreadsheet, 'Projects', PROJECT_HEADERS);
   ensureSheet_(spreadsheet, 'ProductionLogs', LOG_HEADERS);
+  ensureSheet_(spreadsheet, 'DeletedProjects', DELETED_PROJECT_HEADERS);
+  ensureSheet_(spreadsheet, 'DeletedProductionLogs', DELETED_LOG_HEADERS);
   return 'SPLITLAB database is ready.';
 }
 
@@ -41,6 +45,10 @@ function doPost(event) {
     }
     if (parameters.action === 'analyze') {
       return json_({ ok: true, analysis: analyzeProject_(payload) });
+    }
+    if (parameters.action === 'deleteProject') {
+      if (!payload || !payload.projectId) throw new Error('Project ID is required.');
+      return json_({ ok: true, ...deleteProject_(payload.projectId) });
     }
     throw new Error('Unsupported action.');
   } catch (error) {
@@ -79,11 +87,14 @@ function syncProjects_(incomingProjects) {
     const spreadsheet = getSpreadsheet_();
     const projectSheet = ensureSheet_(spreadsheet, 'Projects', PROJECT_HEADERS);
     const logSheet = ensureSheet_(spreadsheet, 'ProductionLogs', LOG_HEADERS);
+    const deletedProjectSheet = ensureSheet_(spreadsheet, 'DeletedProjects', DELETED_PROJECT_HEADERS);
     const existingRows = readRows_(projectSheet, PROJECT_HEADERS);
     const existingById = Object.fromEntries(existingRows.map(record => [record.id, record]));
+    const deletedIds = new Set(readRows_(deletedProjectSheet, DELETED_PROJECT_HEADERS).map(record => String(record.id)));
 
     incomingProjects.forEach(project => {
       if (!project || !project.id) return;
+      if (deletedIds.has(String(project.id))) return;
       const existing = existingById[project.id];
       const incomingTime = Date.parse(project.updatedAt || '') || 0;
       const existingTime = Date.parse(existing && existing.updatedAt || '') || 0;
@@ -94,6 +105,54 @@ function syncProjects_(incomingProjects) {
     });
     SpreadsheetApp.flush();
     return readProjects_(projectSheet, logSheet);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deleteProject_(projectId) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const spreadsheet = getSpreadsheet_();
+    const projectSheet = ensureSheet_(spreadsheet, 'Projects', PROJECT_HEADERS);
+    const logSheet = ensureSheet_(spreadsheet, 'ProductionLogs', LOG_HEADERS);
+    const deletedProjectSheet = ensureSheet_(spreadsheet, 'DeletedProjects', DELETED_PROJECT_HEADERS);
+    const deletedLogSheet = ensureSheet_(spreadsheet, 'DeletedProductionLogs', DELETED_LOG_HEADERS);
+    const projectRowNumber = findRowById_(projectSheet, projectId);
+    if (!projectRowNumber) throw new Error('案件が見つかりません。先に同期してください。');
+
+    const projectRow = projectSheet.getRange(projectRowNumber, 1, 1, PROJECT_HEADERS.length).getValues()[0];
+    const archivedValue = projectRow[PROJECT_HEADERS.indexOf('archived')];
+    const isArchived = archivedValue === true || String(archivedValue).toLowerCase() === 'true';
+    if (!isArchived) throw new Error('削除できるのはアーカイブ済み案件だけです。');
+
+    const deletedAt = new Date().toISOString();
+    const projectTitle = String(projectRow[PROJECT_HEADERS.indexOf('title')] || 'Untitled Track');
+    deletedProjectSheet.appendRow(projectRow.concat([deletedAt]));
+
+    const logRowsToDelete = [];
+    const deletedLogRows = [];
+    if (logSheet.getLastRow() > 1) {
+      const rows = logSheet.getRange(2, 1, logSheet.getLastRow() - 1, LOG_HEADERS.length).getValues();
+      rows.forEach((row, index) => {
+        if (String(row[1]) !== String(projectId)) return;
+        deletedLogRows.push(row.concat([projectTitle, deletedAt]));
+        logRowsToDelete.push(index + 2);
+      });
+    }
+    if (deletedLogRows.length) {
+      deletedLogSheet.getRange(deletedLogSheet.getLastRow() + 1, 1, deletedLogRows.length, DELETED_LOG_HEADERS.length).setValues(deletedLogRows);
+    }
+
+    logRowsToDelete.reverse().forEach(rowNumber => logSheet.deleteRow(rowNumber));
+    projectSheet.deleteRow(projectRowNumber);
+    SpreadsheetApp.flush();
+    return {
+      deletedProjectId: String(projectId),
+      archivedLogCount: deletedLogRows.length,
+      projects: readProjects_(projectSheet, logSheet)
+    };
   } finally {
     lock.releaseLock();
   }
