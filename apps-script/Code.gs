@@ -27,7 +27,7 @@ function doGet() {
   return json_({
     ok: true,
     service: 'SPLITLAB Sheets API',
-    version: 1
+    version: 2
   });
 }
 
@@ -39,6 +39,10 @@ function doPost(event) {
     if (parameters.action === 'sync') {
       if (!Array.isArray(payload)) throw new Error('Payload must be an array.');
       return json_({ ok: true, projects: syncProjects_(payload) });
+    }
+    if (parameters.action === 'syncDelta') {
+      if (!payload || typeof payload !== 'object') throw new Error('Delta payload is required.');
+      return json_({ ok: true, ...syncDelta_(payload) });
     }
     if (parameters.action === 'parseLogs') {
       return json_({ ok: true, logs: parseNarrative_(payload) });
@@ -81,6 +85,15 @@ function ensureSheet_(spreadsheet, name, headers) {
 }
 
 function syncProjects_(incomingProjects) {
+  return syncProjectChanges_(incomingProjects, '', true).projects;
+}
+
+function syncDelta_(payload) {
+  const incomingProjects = Array.isArray(payload.changes) ? payload.changes : [];
+  return syncProjectChanges_(incomingProjects, payload.since || '', payload.full === true);
+}
+
+function syncProjectChanges_(incomingProjects, since, full) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(8000)) throw new Error('別端末の同期処理中です。少し待って自動再試行します。');
   try {
@@ -95,11 +108,15 @@ function syncProjects_(incomingProjects) {
       if (!existingLogsByProject[log.projectId]) existingLogsByProject[log.projectId] = [];
       existingLogsByProject[log.projectId].push(log);
     });
-    const deletedIds = new Set(readRows_(deletedProjectSheet, DELETED_PROJECT_HEADERS).map(record => String(record.id)));
+    const deletedRows = readRows_(deletedProjectSheet, DELETED_PROJECT_HEADERS);
+    const deletedIds = new Set(deletedRows.map(record => String(record.id)));
+    const incomingIds = new Set();
 
     incomingProjects.forEach(project => {
       if (!project || !project.id) return;
-      if (deletedIds.has(String(project.id))) return;
+      const projectId = String(project.id);
+      incomingIds.add(projectId);
+      if (deletedIds.has(projectId)) return;
       const existing = existingById[project.id];
       const incomingTime = Date.parse(project.updatedAt || '') || 0;
       const existingTime = Date.parse(existing && existing.updatedAt || '') || 0;
@@ -111,13 +128,26 @@ function syncProjects_(incomingProjects) {
         }
       }
     });
+
     SpreadsheetApp.flush();
-    return readProjects_(projectSheet, logSheet);
+    const sinceTime = Date.parse(since || '') || 0;
+    const allProjects = readProjects_(projectSheet, logSheet);
+    const projects = full
+      ? allProjects
+      : allProjects.filter(project => incomingIds.has(String(project.id)) || (Date.parse(project.updatedAt || '') || 0) > sinceTime);
+    const deletedProjectIds = deletedRows
+      .filter(record => full || incomingIds.has(String(record.id)) || (Date.parse(record.deletedAt || '') || 0) > sinceTime)
+      .map(record => String(record.id));
+    return {
+      projects,
+      deletedProjectIds,
+      full,
+      serverTime: new Date().toISOString()
+    };
   } finally {
     lock.releaseLock();
   }
 }
-
 function deleteProject_(projectId) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -159,7 +189,8 @@ function deleteProject_(projectId) {
     return {
       deletedProjectId: String(projectId),
       archivedLogCount: deletedLogRows.length,
-      projects: readProjects_(projectSheet, logSheet)
+      projects: readProjects_(projectSheet, logSheet),
+      serverTime: new Date().toISOString()
     };
   } finally {
     lock.releaseLock();

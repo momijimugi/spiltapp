@@ -268,6 +268,11 @@
       </form>
     </div>
 
+    <div id="full-sync-progress" class="fixed left-1/2 top-20 z-50 hidden w-[min(92vw,440px)] -translate-x-1/2 rounded-xl border border-acid/30 bg-[#171b22]/95 p-4 shadow-2xl backdrop-blur" role="status" aria-live="polite">
+      <div class="flex items-center justify-between gap-4"><div><p class="text-xs font-bold text-slate-100">全件取得中 <span class="font-normal text-slate-500">（進捗目安）</span></p><p id="full-sync-phase" class="mt-1 text-[10px] text-slate-500">準備しています</p></div><div class="text-right font-mono"><p id="full-sync-percent" class="text-sm font-bold text-acid">0%</p><p id="full-sync-remaining" class="text-[9px] text-slate-500">残り100%</p></div></div>
+      <div class="mt-3 h-2 overflow-hidden rounded-full bg-black/40"><div id="full-sync-bar" class="h-full w-0 rounded-full bg-acid transition-[width] duration-300"></div></div>
+    </div>
+
     <div id="toast" class="pointer-events-none fixed bottom-40 left-1/2 z-50 -translate-x-1/2 translate-y-3 rounded-lg border border-acid/20 bg-[#171b22] px-4 py-3 text-xs font-semibold text-acid opacity-0 shadow-xl transition duration-200" role="status" aria-live="polite">コピーしました</div>
   </div>
 
@@ -326,7 +331,19 @@
     };
     const STORAGE_KEY = 'splitlab_projects_v2';
     const API_URL_KEY = 'splitlab_apps_script_url';
+    const DIRTY_PROJECTS_KEY = 'splitlab_dirty_projects_v1';
+    const LAST_REMOTE_SYNC_KEY = 'splitlab_last_remote_sync_v1';
+    const SYNC_SCHEMA_KEY = 'splitlab_sync_schema';
+    const SYNC_SCHEMA_VERSION = 'delta-v1';
     let projects = loadProjects();
+    let dirtyProjectIds = loadDirtyProjectIds();
+    let lastRemoteSyncAt = localStorage.getItem(LAST_REMOTE_SYNC_KEY) || '';
+    if (localStorage.getItem(SYNC_SCHEMA_KEY) !== SYNC_SCHEMA_VERSION) {
+      projects.forEach(project => dirtyProjectIds.add(project.id));
+      lastRemoteSyncAt = '';
+      persistSyncState();
+      localStorage.setItem(SYNC_SCHEMA_KEY, SYNC_SCHEMA_VERSION);
+    }
     let activeProjectId = null;
     let saveTimer;
     let autoSyncTimer;
@@ -340,6 +357,60 @@
 
     function persistProjects() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    }
+
+    function loadDirtyProjectIds() {
+      try { return new Set(JSON.parse(localStorage.getItem(DIRTY_PROJECTS_KEY)) || []); }
+      catch { return new Set(); }
+    }
+
+    function persistSyncState() {
+      localStorage.setItem(DIRTY_PROJECTS_KEY, JSON.stringify([...dirtyProjectIds]));
+      if (lastRemoteSyncAt) localStorage.setItem(LAST_REMOTE_SYNC_KEY, lastRemoteSyncAt);
+      else localStorage.removeItem(LAST_REMOTE_SYNC_KEY);
+    }
+
+    function markProjectDirty(projectId) {
+      if (!projectId) return;
+      dirtyProjectIds.add(projectId);
+      persistSyncState();
+    }
+
+    let fullSyncProgressTimer = null;
+    let fullSyncHideTimer = null;
+
+    function setFullSyncProgress(percent, phase) {
+      const value = Math.max(0, Math.min(100, Math.round(percent)));
+      document.getElementById('full-sync-percent').textContent = `${value}%`;
+      document.getElementById('full-sync-remaining').textContent = `残り${100 - value}%`;
+      document.getElementById('full-sync-bar').style.width = `${value}%`;
+      if (phase) document.getElementById('full-sync-phase').textContent = phase;
+    }
+
+    function startFullSyncProgress() {
+      clearInterval(fullSyncProgressTimer);
+      clearTimeout(fullSyncHideTimer);
+      const container = document.getElementById('full-sync-progress');
+      container.classList.remove('hidden');
+      setFullSyncProgress(8, 'ローカルの変更を整理しています');
+      let progress = 8;
+      fullSyncProgressTimer = setInterval(() => {
+        progress = Math.min(82, progress + (progress < 45 ? 7 : 3));
+        setFullSyncProgress(progress, progress < 45 ? 'Google Sheetsへ接続しています' : '案件と制作ログを取得しています');
+      }, 450);
+    }
+
+    function finishFullSyncProgress(success) {
+      clearInterval(fullSyncProgressTimer);
+      fullSyncProgressTimer = null;
+      const container = document.getElementById('full-sync-progress');
+      if (success) {
+        setFullSyncProgress(100, '全件取得が完了しました');
+        fullSyncHideTimer = setTimeout(() => container.classList.add('hidden'), 900);
+      } else {
+        document.getElementById('full-sync-phase').textContent = '全件取得を完了できませんでした。自動再試行します';
+        fullSyncHideTimer = setTimeout(() => container.classList.add('hidden'), 2400);
+      }
     }
 
     function defaultTaskState() {
@@ -433,11 +504,12 @@
     function scheduleProjectSave() {
       const project = getActiveProject();
       if (!project) return;
+      captureProjectFields(project);
+      project.updatedAt = new Date().toISOString();
+      markProjectDirty(project.id);
       clearTimeout(saveTimer);
       document.getElementById('save-state').textContent = 'SAVING…';
       saveTimer = setTimeout(() => {
-        captureProjectFields(project);
-        project.updatedAt = new Date().toISOString();
         persistProjects();
         document.getElementById('save-state').textContent = 'SAVED LOCALLY / SYNC PENDING';
         scheduleAutoSync();
@@ -509,9 +581,8 @@
       const project = getActiveProject();
       if (project) {
         captureProjectFields(project);
-        project.updatedAt = new Date().toISOString();
         persistProjects();
-        scheduleAutoSync();
+        if (dirtyProjectIds.has(project.id)) scheduleAutoSync();
       }
       activeProjectId = null;
       document.getElementById('dashboard-view').classList.remove('hidden');
@@ -857,18 +928,29 @@
       autoSyncTimer = setTimeout(() => syncWithSheets({ silent: true }), delay);
     }
 
-    function mergeSyncedProjects(remoteProjects) {
-      const localById = Object.fromEntries(projects.map(project => [project.id, project]));
-      return (remoteProjects || []).map(remoteProject => {
-        const localProject = localById[remoteProject.id];
-        const hasArchived = Object.prototype.hasOwnProperty.call(remoteProject, 'archived');
-        const hasArchivedAt = Object.prototype.hasOwnProperty.call(remoteProject, 'archivedAt');
-        return normalizeProject({
-          ...remoteProject,
-          archived: hasArchived ? remoteProject.archived : (localProject?.archived ?? false),
-          archivedAt: hasArchivedAt ? remoteProject.archivedAt : (localProject?.archivedAt || '')
-        });
+    function applyDeltaSync(remoteProjects, deletedProjectIds, full) {
+      const deletedIds = new Set((deletedProjectIds || []).map(String));
+      const localById = new Map(projects.map(project => [String(project.id), project]));
+      const nextById = full
+        ? new Map()
+        : new Map([...localById].filter(([projectId]) => !deletedIds.has(projectId)));
+
+      (remoteProjects || []).forEach(remoteProject => {
+        const projectId = String(remoteProject.id);
+        if (!projectId || deletedIds.has(projectId) || dirtyProjectIds.has(projectId)) return;
+        nextById.set(projectId, normalizeProject(remoteProject));
       });
+
+      if (full) {
+        localById.forEach((localProject, projectId) => {
+          if (dirtyProjectIds.has(projectId) && !deletedIds.has(projectId)) nextById.set(projectId, localProject);
+        });
+      }
+      deletedIds.forEach(projectId => {
+        nextById.delete(projectId);
+        dirtyProjectIds.delete(projectId);
+      });
+      projects = [...nextById.values()];
     }
 
     async function syncWithSheets(options = {}) {
@@ -879,42 +961,78 @@
         if (!options.poll) syncQueued = true;
         return false;
       }
+
+      const activeProject = getActiveProject();
+      if (!silent && activeProject) {
+        captureProjectFields(activeProject);
+        persistProjects();
+      }
+
+      const full = options.full === true || !lastRemoteSyncAt || projects.length === 0;
+      const attemptedProjects = projects.filter(project => dirtyProjectIds.has(project.id));
+      const attemptedVersions = Object.fromEntries(attemptedProjects.map(project => [String(project.id), project.updatedAt || '']));
       syncInFlight = true;
       const { apiUrl, apiKey } = connection;
       const button = document.getElementById('sync-btn');
-      button.disabled = true;
-      button.textContent = '同期中…';
+      if (!silent) {
+        button.disabled = true;
+        button.textContent = full ? '全件取得中…' : '同期中…';
+      }
+      if (full) startFullSyncProgress();
+
       try {
-        const activeProject = getActiveProject();
-        if (!silent && activeProject) {
-          captureProjectFields(activeProject);
-          activeProject.updatedAt = new Date().toISOString();
-          persistProjects();
+        if (full) setFullSyncProgress(18, '変更した案件を送信しています');
+        const payload = {
+          changes: attemptedProjects,
+          since: full ? '' : lastRemoteSyncAt,
+          full
+        };
+        const body = new URLSearchParams({ action: 'syncDelta', apiKey, payload: JSON.stringify(payload) });
+        const result = await postToAppsScript(apiUrl, body, {
+          timeoutMs: full ? 30000 : 15000,
+          timeoutLabel: full ? '全件取得' : '同期'
+        });
+        if (!result.ok) {
+          if (result.error === 'Unsupported action.') throw new Error('Apps Scriptが旧バージョンです。最新のCode.gsを新しいバージョンとして再デプロイしてください。');
+          throw new Error(result.error || '同期に失敗しました。');
         }
-        const body = new URLSearchParams({ action: 'sync', apiKey, payload: JSON.stringify(projects) });
-        const result = await postToAppsScript(apiUrl, body, { timeoutMs: 15000, timeoutLabel: '同期' });
-        if (!result.ok) throw new Error(result.error || '同期に失敗しました。');
-        projects = mergeSyncedProjects(result.projects);
+        if (full) setFullSyncProgress(88, '取得したデータを反映しています');
+
+        attemptedProjects.forEach(project => {
+          const currentProject = projects.find(item => String(item.id) === String(project.id));
+          if (!currentProject || String(currentProject.updatedAt || '') === String(attemptedVersions[String(project.id)] || '')) {
+            dirtyProjectIds.delete(project.id);
+          }
+        });
+        const remoteProjects = Array.isArray(result.projects) ? result.projects : [];
+        const deletedProjectIds = Array.isArray(result.deletedProjectIds) ? result.deletedProjectIds : [];
+        const receivedChanges = full || remoteProjects.length > 0 || deletedProjectIds.length > 0;
+        applyDeltaSync(remoteProjects, deletedProjectIds, full);
+        lastRemoteSyncAt = result.serverTime || new Date().toISOString();
+        persistSyncState();
         persistProjects();
-        renderDashboard();
-        if (activeProjectId) document.getElementById('save-state').textContent = 'SAVED / SHEETS SYNCED';
-        if (!silent) showToast(`${projects.length}件をGoogle Sheetsと同期しました`);
+        if (receivedChanges) renderDashboard();
+        if (activeProjectId) document.getElementById('save-state').textContent = dirtyProjectIds.has(activeProjectId) ? 'LOCAL CHANGES / SYNC PENDING' : 'SAVED / SHEETS SYNCED';
+        if (full) finishFullSyncProgress(true);
+        if (!silent) showToast(full ? `${projects.length}件を全件取得しました` : `${remoteProjects.length}件の差分を同期しました`);
         return true;
       } catch (error) {
+        if (full) finishFullSyncProgress(false);
         if (activeProjectId) document.getElementById('save-state').textContent = 'LOCAL SAVED / SYNC ERROR';
         if (!silent) showToast(`同期エラー: ${error.message}`);
         return false;
       } finally {
         syncInFlight = false;
-        button.disabled = false;
-        button.textContent = '自動同期';
+        if (!silent) {
+          button.disabled = false;
+          button.textContent = '自動同期';
+        }
         if (syncQueued) {
           syncQueued = false;
           scheduleAutoSync(150);
         }
       }
     }
-
     function taskTemplate(task) {
       return `
         <div class="task-row grid gap-4 px-5 py-5 transition sm:grid-cols-[minmax(180px,1fr)_minmax(250px,1.5fr)] sm:items-center sm:px-6" data-task-id="${task.id}" data-points="${task.points}" data-adjustable="${Boolean(task.adjustable)}">
@@ -1108,7 +1226,10 @@
         const body = new URLSearchParams({ action: 'deleteProject', apiKey, payload: JSON.stringify({ projectId }) });
         const result = await postToAppsScript(apiUrl, body, { timeoutMs: 30000, timeoutLabel: '消去' });
         if (!result.ok) throw new Error(result.error || '案件を消去できませんでした。');
-        projects = mergeSyncedProjects(result.projects);
+        projects = projects.filter(project => String(project.id) !== String(projectId));
+        dirtyProjectIds.delete(projectId);
+        if (result.serverTime) lastRemoteSyncAt = result.serverTime;
+        persistSyncState();
         persistProjects();
         renderDashboard();
         closeDeleteModal();
@@ -1124,6 +1245,7 @@
     document.getElementById('new-project-btn').addEventListener('click', () => {
       const project = makeProject();
       projects.push(project);
+      markProjectDirty(project.id);
       persistProjects();
       scheduleAutoSync();
       openProject(project.id);
@@ -1147,6 +1269,7 @@
         project.archivedAt = new Date().toISOString();
         project.status = '完了';
         project.updatedAt = project.archivedAt;
+        markProjectDirty(project.id);
         persistProjects();
         renderDashboard();
         const synced = getStoredApiConnection() ? await syncWithSheets({ silent: true }) : false;
@@ -1159,6 +1282,7 @@
         project.archived = false;
         project.archivedAt = '';
         project.updatedAt = new Date().toISOString();
+        markProjectDirty(project.id);
         persistProjects();
         renderDashboard();
         const synced = getStoredApiConnection() ? await syncWithSheets({ silent: true }) : false;
