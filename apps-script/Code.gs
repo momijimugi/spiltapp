@@ -82,7 +82,7 @@ function ensureSheet_(spreadsheet, name, headers) {
 
 function syncProjects_(incomingProjects) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  if (!lock.tryLock(8000)) throw new Error('別端末の同期処理中です。少し待って自動再試行します。');
   try {
     const spreadsheet = getSpreadsheet_();
     const projectSheet = ensureSheet_(spreadsheet, 'Projects', PROJECT_HEADERS);

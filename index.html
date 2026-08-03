@@ -819,14 +819,24 @@
       return apiUrl && apiKey ? { apiUrl, apiKey } : null;
     }
 
-    async function postToAppsScript(apiUrl, body) {
+    async function postToAppsScript(apiUrl, body, options = {}) {
+      const timeoutMs = Math.max(1000, Number(options.timeoutMs) || 60000);
+      const timeoutLabel = String(options.timeoutLabel || '処理');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       let response;
+      let responseText;
       try {
-        response = await fetch(apiUrl, { method: 'POST', body });
-      } catch {
+        response = await fetch(apiUrl, { method: 'POST', body, signal: controller.signal });
+        responseText = await response.text();
+      } catch (error) {
+        if (error && error.name === 'AbortError') {
+          throw new Error(`${timeoutLabel}が${Math.round(timeoutMs / 1000)}秒以内に完了しなかったため中断しました。自動的に再試行します。`);
+        }
         throw new Error('Apps Scriptへ接続できません。ウェブアプリを「実行ユーザー: 自分」「アクセスできるユーザー: 全員」で再デプロイし、/execで終わるURLを設定してください。');
+      } finally {
+        clearTimeout(timeoutId);
       }
-      const responseText = await response.text();
       let result;
       try {
         result = JSON.parse(responseText);
@@ -866,7 +876,7 @@
       const connection = silent ? getStoredApiConnection() : await requestApiConnection();
       if (!connection) return false;
       if (syncInFlight) {
-        syncQueued = true;
+        if (!options.poll) syncQueued = true;
         return false;
       }
       syncInFlight = true;
@@ -882,7 +892,7 @@
           persistProjects();
         }
         const body = new URLSearchParams({ action: 'sync', apiKey, payload: JSON.stringify(projects) });
-        const result = await postToAppsScript(apiUrl, body);
+        const result = await postToAppsScript(apiUrl, body, { timeoutMs: 15000, timeoutLabel: '同期' });
         if (!result.ok) throw new Error(result.error || '同期に失敗しました。');
         projects = mergeSyncedProjects(result.projects);
         persistProjects();
@@ -1096,7 +1106,7 @@
       errorElement.classList.add('hidden');
       try {
         const body = new URLSearchParams({ action: 'deleteProject', apiKey, payload: JSON.stringify({ projectId }) });
-        const result = await postToAppsScript(apiUrl, body);
+        const result = await postToAppsScript(apiUrl, body, { timeoutMs: 30000, timeoutLabel: '消去' });
         if (!result.ok) throw new Error(result.error || '案件を消去できませんでした。');
         projects = mergeSyncedProjects(result.projects);
         persistProjects();
@@ -1265,7 +1275,7 @@
     renderDashboard();
     if (getStoredApiConnection()) scheduleAutoSync(100);
     setInterval(() => {
-      if (document.visibilityState === 'visible') syncWithSheets({ silent: true });
+      if (document.visibilityState === 'visible') syncWithSheets({ silent: true, poll: true });
     }, 10000);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') scheduleAutoSync(100);
