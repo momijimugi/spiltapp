@@ -249,7 +249,7 @@
       <form id="api-form" class="w-full max-w-lg rounded-2xl border border-line bg-panel p-6 shadow-2xl sm:p-7">
         <p class="font-mono text-[10px] uppercase tracking-[.18em] text-acid">Google connection</p>
         <h2 id="api-modal-title" class="mt-2 text-xl font-bold">Google Sheets / AI 接続設定</h2>
-        <p class="mt-2 text-xs leading-5 text-slate-500">設定値はGitHubへ保存されません。接続キーはこのタブを閉じると消去されます。</p>
+        <p class="mt-2 text-xs leading-5 text-slate-500">GitHub Pagesでは初回のみ再設定が必要です。Apps Scriptは「実行ユーザー: 自分」「アクセスできるユーザー: 全員」でデプロイしてください。接続キーはタブを閉じると消去されます。</p>
         <label class="mt-6 block"><span class="mb-2 block text-xs text-slate-400">Apps Script Web App URL</span><input id="api-url-input" type="url" required autocomplete="url" class="w-full rounded-lg border border-line bg-black/30 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="https://script.google.com/macros/s/.../exec"></label>
         <label class="mt-4 block"><span class="mb-2 block text-xs text-slate-400">接続キー</span><input id="api-key-input" type="password" required autocomplete="off" class="w-full rounded-lg border border-line bg-black/30 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="Script PropertiesのAPI_KEY"></label>
         <p id="api-modal-error" class="mt-3 hidden text-xs text-rose-400"></p>
@@ -722,8 +722,7 @@
       try {
         const project = getActiveProject();
         const body = new URLSearchParams({ action: 'parseLogs', apiKey: connection.apiKey, payload: JSON.stringify({ text, project: { title: project?.title || '', duration: project?.duration || 180 } }) });
-        const response = await fetch(connection.apiUrl, { method: 'POST', body });
-        const result = await response.json();
+        const result = await postToAppsScript(connection.apiUrl, body);
         if (!result.ok) throw new Error(result.error || '文章を分解できませんでした。');
         parsedLogDrafts = (result.logs || []).map(log => ({
           person: log.person === 'B' ? 'B' : 'A',
@@ -760,8 +759,7 @@
       try {
         const payload = { project: { title: project.title, duration: project.duration }, logs: project.logs, baseline: calculateLocalAnalysis() };
         const body = new URLSearchParams({ action: 'analyze', apiKey, payload: JSON.stringify(payload) });
-        const response = await fetch(apiUrl, { method: 'POST', body });
-        const result = await response.json();
+        const result = await postToAppsScript(apiUrl, body);
         if (!result.ok) throw new Error(result.error || '分析に失敗しました。');
         renderAnalysis({ ...result.analysis, source: 'GOOGLE GEMINI' });
         scheduleProjectSave();
@@ -780,6 +778,28 @@
       const apiUrl = localStorage.getItem(API_URL_KEY) || '';
       const apiKey = sessionStorage.getItem('splitlab_api_key') || '';
       return apiUrl && apiKey ? { apiUrl, apiKey } : null;
+    }
+
+    async function postToAppsScript(apiUrl, body) {
+      let response;
+      try {
+        response = await fetch(apiUrl, { method: 'POST', body });
+      } catch {
+        throw new Error('Apps Scriptへ接続できません。ウェブアプリを「実行ユーザー: 自分」「アクセスできるユーザー: 全員」で再デプロイし、/execで終わるURLを設定してください。');
+      }
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        const looksLikeLoginPage = /<!doctype|<html|accounts\.google\.com|ServiceLogin/i.test(responseText);
+        if (looksLikeLoginPage) {
+          throw new Error('Apps Scriptがログイン画面を返しました。アクセスできるユーザーを「全員」にして新しいバージョンをデプロイしてください。');
+        }
+        throw new Error('Apps Scriptの応答を読み取れませんでした（HTTP ' + response.status + '）。Web App URLが/execで終わるか確認してください。');
+      }
+      if (!response.ok) throw new Error(result.error || 'Apps Script HTTP ' + response.status);
+      return result;
     }
 
     function scheduleAutoSync(delay = 2000) {
@@ -823,8 +843,7 @@
           persistProjects();
         }
         const body = new URLSearchParams({ action: 'sync', apiKey, payload: JSON.stringify(projects) });
-        const response = await fetch(apiUrl, { method: 'POST', body });
-        const result = await response.json();
+        const result = await postToAppsScript(apiUrl, body);
         if (!result.ok) throw new Error(result.error || '同期に失敗しました。');
         projects = mergeSyncedProjects(result.projects);
         persistProjects();
