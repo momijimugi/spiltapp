@@ -145,8 +145,8 @@ function deleteProject_(projectId) {
       deletedLogSheet.getRange(deletedLogSheet.getLastRow() + 1, 1, deletedLogRows.length, DELETED_LOG_HEADERS.length).setValues(deletedLogRows);
     }
 
-    logRowsToDelete.reverse().forEach(rowNumber => logSheet.deleteRow(rowNumber));
-    projectSheet.deleteRow(projectRowNumber);
+    deleteDataRows_(logSheet, logRowsToDelete);
+    deleteDataRows_(projectSheet, [projectRowNumber]);
     SpreadsheetApp.flush();
     return {
       deletedProjectId: String(projectId),
@@ -183,12 +183,14 @@ function upsertProject_(sheet, project) {
 }
 
 function replaceProjectLogs_(sheet, projectId, logs) {
+  const rowsToDelete = [];
   if (sheet.getLastRow() > 1) {
     const projectIds = sheet.getRange(2, 2, sheet.getLastRow() - 1, 1).getValues();
     for (let index = projectIds.length - 1; index >= 0; index -= 1) {
-      if (String(projectIds[index][0]) === String(projectId)) sheet.deleteRow(index + 2);
+      if (String(projectIds[index][0]) === String(projectId)) rowsToDelete.push(index + 2);
     }
   }
+  deleteDataRows_(sheet, rowsToDelete);
   if (!logs.length) return;
   const rows = logs.map(log => [
     log.id || Utilities.getUuid(),
@@ -384,6 +386,16 @@ function findRowById_(sheet, id) {
     .matchEntireCell(true)
     .findNext();
   return match ? match.getRow() : 0;
+}
+
+function deleteDataRows_(sheet, rowNumbers) {
+  [...new Set(rowNumbers)].sort((a, b) => b - a).forEach(rowNumber => {
+    if (sheet.getMaxRows() <= sheet.getFrozenRows() + 1) {
+      sheet.getRange(rowNumber, 1, 1, sheet.getMaxColumns()).clearContent();
+    } else {
+      sheet.deleteRow(rowNumber);
+    }
+  });
 }
 
 function serializeCell_(value) {
