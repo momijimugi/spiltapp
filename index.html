@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="音楽制作コライトの貢献度を、制作ログの物量と音楽的比重から分析するスプリット管理アプリ。">
+  <title>SPLITLAB — Co-write Split Calculator</title>
+<style>
+    /* Compiled Tailwind CSS — production build */
+*,:after,:before{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/*! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com*/*,:after,:before{box-sizing:border-box;border:0 solid #e5e7eb}:after,:before{--tw-content:""}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;-o-tab-size:4;tab-size:4;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:JetBrains Mono,ui-monospace,SFMono-Regular,monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0}fieldset,legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::-moz-placeholder,textarea::-moz-placeholder{opacity:1;color:#9ca3af}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.container{width:100%}@media (min-width:640px){.container{max-width:640px}}@media (min-width:768px){.container{max-width:768px}}@media (min-width:1024px){.container{max-width:1024px}}@media (min-width:1280px){.container{max-width:1280px}}@media (min-width:1536px){.container{max-width:1536px}}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}.pointer-events-none{pointer-events:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.inset-0{inset:0}.inset-x-0{left:0;right:0}.bottom-0{bottom:0}.bottom-40{bottom:10rem}.left-1{left:.25rem}.left-1\/2{left:50%}.z-30{z-index:30}.z-50{z-index:50}.mx-auto{margin-left:auto;margin-right:auto}.mb-1{margin-bottom:.25rem}.mb-2{margin-bottom:.5rem}.mb-3{margin-bottom:.75rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.mb-7{margin-bottom:1.75rem}.mb-8{margin-bottom:2rem}.ml-1{margin-left:.25rem}.mr-1{margin-right:.25rem}.mt-1{margin-top:.25rem}.mt-2{margin-top:.5rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-7{margin-top:1.75rem}.mt-auto{margin-top:auto}.block{display:block}.flex{display:flex}.inline-flex{display:inline-flex}.table{display:table}.grid{display:grid}.hidden{display:none}.h-1{height:.25rem}.h-12{height:3rem}.h-2{height:.5rem}.h-3{height:.75rem}.h-4{height:1rem}.h-5{height:1.25rem}.h-9{height:2.25rem}.h-px{height:1px}.min-h-5{min-height:1.25rem}.min-h-screen{min-height:100vh}.w-10{width:2.5rem}.w-3{width:.75rem}.w-4{width:1rem}.w-9{width:2.25rem}.w-full{width:100%}.min-w-0{min-width:0}.max-w-3xl{max-width:48rem}.max-w-6xl{max-width:72rem}.max-w-lg{max-width:32rem}.max-w-md{max-width:28rem}.flex-1{flex:1 1 0%}.shrink-0{flex-shrink:0}.-translate-x-1{--tw-translate-x:-0.25rem}.-translate-x-1,.-translate-x-1\/2{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.-translate-x-1\/2{--tw-translate-x:-50%}.-translate-y-0{--tw-translate-y:-0px}.-translate-y-0,.translate-y-3{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.translate-y-3{--tw-translate-y:0.75rem}.transform{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.cursor-pointer{cursor:pointer}.resize-y{resize:vertical}.appearance-none{-webkit-appearance:none;-moz-appearance:none;appearance:none}.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.place-items-center{place-items:center}.items-start{align-items:flex-start}.items-end{align-items:flex-end}.items-center{align-items:center}.justify-start{justify-content:flex-start}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-2{gap:.5rem}.gap-3{gap:.75rem}.gap-4{gap:1rem}.gap-5{gap:1.25rem}.space-y-1>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.25rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.25rem*var(--tw-space-y-reverse))}.space-y-2>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.5rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.5rem*var(--tw-space-y-reverse))}.space-y-3>:not([hidden])~:not([hidden]){--tw-space-y-reverse:0;margin-top:calc(.75rem*(1 - var(--tw-space-y-reverse)));margin-bottom:calc(.75rem*var(--tw-space-y-reverse))}.divide-y>:not([hidden])~:not([hidden]){--tw-divide-y-reverse:0;border-top-width:calc(1px*(1 - var(--tw-divide-y-reverse)));border-bottom-width:calc(1px*var(--tw-divide-y-reverse))}.divide-line>:not([hidden])~:not([hidden]){--tw-divide-opacity:1;border-color:rgb(37 41 54/var(--tw-divide-opacity,1))}.overflow-hidden,.truncate{overflow:hidden}.truncate{text-overflow:ellipsis;white-space:nowrap}.rounded{border-radius:.25rem}.rounded-2xl{border-radius:1rem}.rounded-full{border-radius:9999px}.rounded-lg{border-radius:.5rem}.rounded-xl{border-radius:.75rem}.border{border-width:1px}.border-b{border-bottom-width:1px}.border-t{border-top-width:1px}.border-dashed{border-style:dashed}.border-acid{--tw-border-opacity:1;border-color:rgb(199 255 61/var(--tw-border-opacity,1))}.border-acid\/20{border-color:rgba(199,255,61,.2)}.border-acid\/30{border-color:rgba(199,255,61,.3)}.border-line{--tw-border-opacity:1;border-color:rgb(37 41 54/var(--tw-border-opacity,1))}.border-line\/70{border-color:rgba(37,41,54,.7)}.border-white{--tw-border-opacity:1;border-color:rgb(255 255 255/var(--tw-border-opacity,1))}.border-white\/10{border-color:hsla(0,0%,100%,.1)}.border-white\/5{border-color:hsla(0,0%,100%,.05)}.bg-\[\#0c0f15\]\/95{background-color:rgba(12,15,21,.95)}.bg-\[\#0d1016\]{--tw-bg-opacity:1;background-color:rgb(13 16 22/var(--tw-bg-opacity,1))}.bg-\[\#171b22\]{--tw-bg-opacity:1;background-color:rgb(23 27 34/var(--tw-bg-opacity,1))}.bg-acid{--tw-bg-opacity:1;background-color:rgb(199 255 61/var(--tw-bg-opacity,1))}.bg-acid\/10{background-color:rgba(199,255,61,.1)}.bg-acid\/\[\.035\]{background-color:rgba(199,255,61,.035)}.bg-acid\/\[\.045\]{background-color:rgba(199,255,61,.045)}.bg-black{--tw-bg-opacity:1;background-color:rgb(0 0 0/var(--tw-bg-opacity,1))}.bg-black\/20{background-color:rgba(0,0,0,.2)}.bg-black\/25{background-color:rgba(0,0,0,.25)}.bg-black\/30{background-color:rgba(0,0,0,.3)}.bg-black\/80{background-color:rgba(0,0,0,.8)}.bg-line{--tw-bg-opacity:1;background-color:rgb(37 41 54/var(--tw-bg-opacity,1))}.bg-panel{--tw-bg-opacity:1;background-color:rgb(17 20 28/var(--tw-bg-opacity,1))}.bg-slate-100{--tw-bg-opacity:1;background-color:rgb(241 245 249/var(--tw-bg-opacity,1))}.bg-slate-700{--tw-bg-opacity:1;background-color:rgb(51 65 85/var(--tw-bg-opacity,1))}.bg-slate-800{--tw-bg-opacity:1;background-color:rgb(30 41 59/var(--tw-bg-opacity,1))}.bg-violet{--tw-bg-opacity:1;background-color:rgb(139 92 246/var(--tw-bg-opacity,1))}.bg-violet\/10{background-color:rgba(139,92,246,.1)}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.bg-white\/\[\.015\]{background-color:hsla(0,0%,100%,.015)}.bg-white\/\[\.04\]{background-color:hsla(0,0%,100%,.04)}.bg-white\/\[\.06\]{background-color:hsla(0,0%,100%,.06)}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.p-8{padding:2rem}.px-2{padding-left:.5rem;padding-right:.5rem}.px-2\.5{padding-left:.625rem;padding-right:.625rem}.px-3{padding-left:.75rem;padding-right:.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.py-1{padding-top:.25rem;padding-bottom:.25rem}.py-16{padding-top:4rem;padding-bottom:4rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-2\.5{padding-top:.625rem;padding-bottom:.625rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-5{padding-top:1.25rem;padding-bottom:1.25rem}.pb-52{padding-bottom:13rem}.pt-3{padding-top:.75rem}.pt-4{padding-top:1rem}.pt-5{padding-top:1.25rem}.pt-8{padding-top:2rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.font-mono{font-family:JetBrains Mono,ui-monospace,SFMono-Regular,monospace}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[9px\]{font-size:9px}.text-base{font-size:1rem;line-height:1.5rem}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:.75rem;line-height:1rem}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-5{line-height:1.25rem}.leading-6{line-height:1.5rem}.leading-7{line-height:1.75rem}.tracking-\[-\.035em\]{letter-spacing:-.035em}.tracking-\[\.14em\]{letter-spacing:.14em}.tracking-\[\.16em\]{letter-spacing:.16em}.tracking-\[\.18em\]{letter-spacing:.18em}.tracking-\[\.22em\]{letter-spacing:.22em}.tracking-\[\.2em\]{letter-spacing:.2em}.text-acid{--tw-text-opacity:1;color:rgb(199 255 61/var(--tw-text-opacity,1))}.text-amber-400{--tw-text-opacity:1;color:rgb(251 191 36/var(--tw-text-opacity,1))}.text-ink{--tw-text-opacity:1;color:rgb(9 11 16/var(--tw-text-opacity,1))}.text-rose-400{--tw-text-opacity:1;color:rgb(251 113 133/var(--tw-text-opacity,1))}.text-slate-100{--tw-text-opacity:1;color:rgb(241 245 249/var(--tw-text-opacity,1))}.text-slate-200{--tw-text-opacity:1;color:rgb(226 232 240/var(--tw-text-opacity,1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184/var(--tw-text-opacity,1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139/var(--tw-text-opacity,1))}.text-slate-600{--tw-text-opacity:1;color:rgb(71 85 105/var(--tw-text-opacity,1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.antialiased{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.accent-\[\#c7ff3d\]{accent-color:#c7ff3d}.accent-slate-300{accent-color:#cbd5e1}.opacity-0{opacity:0}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgba(0,0,0,.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color)}.shadow-2xl,.shadow-\[0_-20px_60px_rgba\(0\2c 0\2c 0\2c \.4\)\]{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-\[0_-20px_60px_rgba\(0\2c 0\2c 0\2c \.4\)\]{--tw-shadow:0 -20px 60px rgba(0,0,0,.4);--tw-shadow-colored:0 -20px 60px var(--tw-shadow-color)}.shadow-glow{--tw-shadow:0 0 40px rgba(199,255,61,.1);--tw-shadow-colored:0 0 40px var(--tw-shadow-color)}.shadow-glow,.shadow-xl{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color),0 8px 10px -6px var(--tw-shadow-color)}.outline-none{outline:2px solid transparent;outline-offset:2px}.outline{outline-style:solid}.ring-offset-panel{--tw-ring-offset-color:#11141c}.blur{--tw-blur:blur(8px)}.blur,.grayscale{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.grayscale{--tw-grayscale:grayscale(100%)}.filter{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.backdrop-blur-sm{--tw-backdrop-blur:blur(4px)}.backdrop-blur-sm,.backdrop-blur-xl{-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.backdrop-blur-xl{--tw-backdrop-blur:blur(24px)}.backdrop-filter{-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-\[width\]{transition-property:width;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.duration-200{transition-duration:.2s}.duration-300{transition-duration:.3s}.ease-in-out{transition-timing-function:cubic-bezier(.4,0,.2,1)}.selection\:bg-acid ::-moz-selection{--tw-bg-opacity:1;background-color:rgb(199 255 61/var(--tw-bg-opacity,1))}.selection\:bg-acid ::selection{--tw-bg-opacity:1;background-color:rgb(199 255 61/var(--tw-bg-opacity,1))}.selection\:text-ink ::-moz-selection{--tw-text-opacity:1;color:rgb(9 11 16/var(--tw-text-opacity,1))}.selection\:text-ink ::selection{--tw-text-opacity:1;color:rgb(9 11 16/var(--tw-text-opacity,1))}.selection\:bg-acid::-moz-selection{--tw-bg-opacity:1;background-color:rgb(199 255 61/var(--tw-bg-opacity,1))}.selection\:bg-acid::selection{--tw-bg-opacity:1;background-color:rgb(199 255 61/var(--tw-bg-opacity,1))}.selection\:text-ink::-moz-selection{--tw-text-opacity:1;color:rgb(9 11 16/var(--tw-text-opacity,1))}.selection\:text-ink::selection{--tw-text-opacity:1;color:rgb(9 11 16/var(--tw-text-opacity,1))}.placeholder\:text-slate-700::-moz-placeholder{--tw-text-opacity:1;color:rgb(51 65 85/var(--tw-text-opacity,1))}.placeholder\:text-slate-700::placeholder{--tw-text-opacity:1;color:rgb(51 65 85/var(--tw-text-opacity,1))}.after\:absolute:after{content:var(--tw-content);position:absolute}.after\:left-\[3px\]:after{content:var(--tw-content);left:3px}.after\:top-\[3px\]:after{content:var(--tw-content);top:3px}.after\:h-3\.5:after{content:var(--tw-content);height:.875rem}.after\:w-3\.5:after{content:var(--tw-content);width:.875rem}.after\:rounded-full:after{content:var(--tw-content);border-radius:9999px}.after\:bg-white:after{content:var(--tw-content);--tw-bg-opacity:1;background-color:rgb(255 255 255/var(--tw-bg-opacity,1))}.after\:transition:after{content:var(--tw-content);transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}.hover\:-translate-y-0\.5:hover{--tw-translate-y:-0.125rem;transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.hover\:border-acid\/30:hover{border-color:rgba(199,255,61,.3)}.hover\:border-acid\/40:hover{border-color:rgba(199,255,61,.4)}.hover\:border-slate-500:hover{--tw-border-opacity:1;border-color:rgb(100 116 139/var(--tw-border-opacity,1))}.hover\:bg-\[\#d5ff6d\]:hover{--tw-bg-opacity:1;background-color:rgb(213 255 109/var(--tw-bg-opacity,1))}.hover\:bg-acid:hover{--tw-bg-opacity:1;background-color:rgb(199 255 61/var(--tw-bg-opacity,1))}.hover\:bg-white\/\[\.07\]:hover{background-color:hsla(0,0%,100%,.07)}.hover\:bg-white\/\[\.1\]:hover{background-color:hsla(0,0%,100%,.1)}.hover\:text-acid:hover{--tw-text-opacity:1;color:rgb(199 255 61/var(--tw-text-opacity,1))}.hover\:text-ink:hover{--tw-text-opacity:1;color:rgb(9 11 16/var(--tw-text-opacity,1))}.hover\:text-rose-400:hover{--tw-text-opacity:1;color:rgb(251 113 133/var(--tw-text-opacity,1))}.hover\:text-white:hover{--tw-text-opacity:1;color:rgb(255 255 255/var(--tw-text-opacity,1))}.hover\:shadow-glow:hover{--tw-shadow:0 0 40px rgba(199,255,61,.1);--tw-shadow-colored:0 0 40px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}.focus\:border-acid\/50:focus{border-color:rgba(199,255,61,.5)}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.focus\:ring-2:focus{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.focus\:ring-acid:focus{--tw-ring-opacity:1;--tw-ring-color:rgb(199 255 61/var(--tw-ring-opacity,1))}.focus\:ring-offset-2:focus{--tw-ring-offset-width:2px}.focus\:ring-offset-ink:focus{--tw-ring-offset-color:#090b10}.disabled\:cursor-not-allowed:disabled{cursor:not-allowed}.disabled\:opacity-40:disabled{opacity:.4}.group:hover .group-hover\:text-acid{--tw-text-opacity:1;color:rgb(199 255 61/var(--tw-text-opacity,1))}.peer:checked~.peer-checked\:bg-acid\/80{background-color:rgba(199,255,61,.8)}.peer:checked~.peer-checked\:after\:translate-x-4:after{content:var(--tw-content);--tw-translate-x:1rem;transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.peer:focus-visible~.peer-focus-visible\:ring-2{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}.peer:focus-visible~.peer-focus-visible\:ring-acid{--tw-ring-opacity:1;--tw-ring-color:rgb(199 255 61/var(--tw-ring-opacity,1))}.peer:focus-visible~.peer-focus-visible\:ring-offset-2{--tw-ring-offset-width:2px}.peer:focus-visible~.peer-focus-visible\:ring-offset-panel{--tw-ring-offset-color:#11141c}@media (min-width:640px){.sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.sm\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}.sm\:grid-cols-\[\.55fr_1fr_1\.6fr\]{grid-template-columns:.55fr 1fr 1.6fr}.sm\:grid-cols-\[auto_1fr_auto\]{grid-template-columns:auto 1fr auto}.sm\:grid-cols-\[minmax\(180px\2c 1fr\)_minmax\(250px\2c 1\.5fr\)\]{grid-template-columns:minmax(180px,1fr) minmax(250px,1.5fr)}.sm\:flex-row{flex-direction:row}.sm\:items-start{align-items:flex-start}.sm\:items-end{align-items:flex-end}.sm\:items-center{align-items:center}.sm\:justify-between{justify-content:space-between}.sm\:p-6{padding:1.5rem}.sm\:p-7{padding:1.75rem}.sm\:px-6{padding-left:1.5rem;padding-right:1.5rem}.sm\:px-7{padding-left:1.75rem;padding-right:1.75rem}.sm\:px-8{padding-left:2rem;padding-right:2rem}.sm\:pt-10{padding-top:2.5rem}.sm\:text-4xl{font-size:2.25rem;line-height:2.5rem}}@media (min-width:768px){.md\:col-span-2{grid-column:span 2/span 2}.md\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (min-width:1024px){.lg\:grid-cols-\[1\.5fr_\.7fr_\.7fr_\.7fr\]{grid-template-columns:1.5fr .7fr .7fr .7fr}}@media (min-width:1280px){.xl\:col-span-7{grid-column:span 7/span 7}.xl\:grid-cols-\[\.6fr_1fr_1\.25fr_\.48fr_\.58fr_\.65fr_auto\]{grid-template-columns:.6fr 1fr 1.25fr .48fr .58fr .65fr auto}}
+    :root {
+      color-scheme: dark;
+      --app-bg: #101418;
+      --surface: #1a2029;
+      --surface-muted: #131922;
+      --line-strong: #465365;
+      --text-muted: #aeb8c7;
+      --accent-a: #67e8f9;
+      --accent-b: #c4b5fd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--app-bg);
+    }
+    .grid-noise {
+      background: transparent;
+    }
+    .glass { background: var(--surface); backdrop-filter: none; }
+    .border-line, .divide-line > :not([hidden]) ~ :not([hidden]) { border-color: var(--line-strong) !important; }
+    .text-slate-600 { color: var(--text-muted) !important; }
+    .text-slate-500 { color: #c2cad5 !important; }
+    .text-slate-400 { color: #d5dce6 !important; }
+    .text-acid { color: var(--accent-a) !important; }
+    .text-violet-300 { color: var(--accent-b) !important; }
+    .bg-acid { background-color: var(--accent-a) !important; }
+    .bg-violet { background-color: #8b5cf6 !important; }
+    [class~="bg-black/20"], [class~="bg-black/25"], [class~="bg-black/30"], [class~="bg-[#0d1016]"] { background-color: var(--surface-muted) !important; }
+    [class~="bg-white/[.015]"], [class~="bg-white/[.04]"], [class~="bg-white/[.06]"] { background-color: #222a35 !important; }
+    input, select, textarea {
+      background-color: var(--surface-muted) !important;
+      border-color: var(--line-strong) !important;
+      color: #f8fafc !important;
+    }
+    input::placeholder, textarea::placeholder { color: #8995a6 !important; }
+    select option { background: #131922; color: #f8fafc; }
+    input:focus, select:focus, textarea:focus, button:focus-visible {
+      outline: 2px solid var(--accent-a) !important;
+      outline-offset: 2px;
+    }
+    .range {
+      --fill: 50%;
+      appearance: none;
+      height: 5px;
+      border-radius: 999px;
+      outline: none;
+      background: linear-gradient(90deg, #c7ff3d 0 var(--fill), #8b5cf6 var(--fill) 100%);
+    }
+    .range::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #f8fafc;
+      border: 4px solid #11141c;
+      box-shadow: 0 0 0 1px #4b5563, 0 2px 10px rgba(0,0,0,.5);
+      cursor: grab;
+    }
+    .range::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: #f8fafc;
+      border: 4px solid #11141c;
+      box-shadow: 0 0 0 1px #4b5563;
+      cursor: grab;
+    }
+    .task-row.is-disabled { opacity: .34; }
+    .task-row.is-disabled .range { filter: grayscale(1); pointer-events: none; }
+    .drop-zone.dragging { border-color: #c7ff3d; background: rgba(199,255,61,.07); }
+    .result-shine { position: relative; overflow: hidden; }
+    .result-shine::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.13) 50%, transparent 70%);
+      transform: translateX(-100%);
+      animation: shine 5s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes shine { 0%, 55% { transform: translateX(-100%); } 80%, 100% { transform: translateX(100%); } }
+    @media (prefers-reduced-motion: reduce) { .result-shine::after { animation: none; } }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100 antialiased selection:bg-acid selection:text-ink">
+  <div class="grid-noise min-h-screen">
+    <header class="border-b border-white/5">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
+        <a id="logo-home" href="#dashboard" class="flex items-center gap-3" aria-label="ダッシュボードへ戻る">
+          <span class="grid h-9 w-9 place-items-center rounded-lg border border-acid/30 bg-acid/10 font-mono text-sm font-bold text-acid">SL</span>
+          <div>
+            <div class="text-sm font-extrabold tracking-[.22em]">SPLITLAB</div>
+            <div class="text-[10px] uppercase tracking-[.16em] text-slate-500">Co-write calculator</div>
+          </div>
+        </a>
+        <div class="flex items-center gap-2">
+          <button id="nav-dashboard" type="button" class="rounded-lg bg-white/[.06] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[.1]">案件一覧</button>
+          <button id="sync-btn" type="button" class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-slate-400 transition hover:border-acid/40 hover:text-acid">自動同期</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-5 pb-52 pt-8 sm:px-8 sm:pt-10">
+      <section id="dashboard-view">
+        <div class="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="font-mono text-[10px] uppercase tracking-[.2em] text-slate-500">Project dashboard</p>
+            <h1 class="mt-2 text-3xl font-extrabold tracking-[-.035em] sm:text-4xl">案件管理</h1>
+            <p class="mt-3 text-sm text-slate-500">コライト案件、制作ログ、スプリットをまとめて管理します。</p>
+          </div>
+          <button id="new-project-btn" type="button" class="rounded-xl bg-acid px-5 py-3 text-sm font-extrabold text-ink transition hover:bg-[#d5ff6d] focus:outline-none focus:ring-2 focus:ring-acid focus:ring-offset-2 focus:ring-offset-ink">＋ 新しい案件</button>
+        </div>
+
+        <div class="mb-7 grid gap-3 sm:grid-cols-2" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+          <div class="glass rounded-xl border border-line p-5"><p class="font-mono text-[10px] uppercase tracking-[.16em] text-slate-600">All projects</p><p id="stat-projects" class="mt-2 text-3xl font-extrabold">0</p></div>
+          <div class="glass rounded-xl border border-line p-5"><p class="font-mono text-[10px] uppercase tracking-[.16em] text-slate-600">In progress</p><p id="stat-progress" class="mt-2 text-3xl font-extrabold text-acid">0</p></div>
+          <div class="glass rounded-xl border border-line p-5"><p class="font-mono text-[10px] uppercase tracking-[.16em] text-slate-600">Archived</p><p id="stat-archived" class="mt-2 text-3xl font-extrabold text-slate-400">0</p></div>
+          <div class="glass rounded-xl border border-line p-5"><p class="font-mono text-[10px] uppercase tracking-[.16em] text-slate-600">Production logs</p><p id="stat-logs" class="mt-2 text-3xl font-extrabold text-violet-300">0</p></div>
+        </div>
+
+        <div id="project-grid" class="grid gap-4 md:grid-cols-2"></div>
+        <div id="empty-projects" class="glass rounded-2xl border border-dashed border-line px-6 py-16 text-center">
+          <p class="text-lg font-bold">進行中の案件はありません</p>
+          <p class="mt-2 text-sm text-slate-500">新しい案件を作成するか、アーカイブ済み案件を復元できます。</p>
+        </div>
+
+        <section id="archive-section" class="mt-8">
+          <button id="toggle-archive-btn" type="button" class="flex w-full items-center justify-between rounded-xl border border-line bg-white/[.015] px-5 py-4 text-left transition hover:border-slate-500" aria-expanded="false">
+            <span><span class="font-mono text-[10px] uppercase tracking-[.16em] text-slate-600">Archive</span><span class="ml-1 text-sm font-bold text-slate-200">完了した案件</span></span>
+            <span id="archive-toggle-label" class="text-xs text-slate-500">表示する</span>
+          </button>
+          <div id="archive-content" class="hidden">
+            <div id="archived-grid" class="mt-4 grid gap-4 md:grid-cols-2"></div>
+            <div id="empty-archives" class="mt-4 rounded-xl border border-dashed border-line px-6 py-8 text-center text-sm text-slate-600">アーカイブ済み案件はありません。</div>
+          </div>
+        </section>
+      </section>
+
+      <div id="project-view" class="hidden">
+        <section class="mb-8">
+          <button id="back-dashboard" type="button" class="mb-5 text-xs font-semibold text-slate-500 transition hover:text-acid">← 案件一覧へ</button>
+          <div class="glass rounded-2xl border border-line p-5 sm:p-7">
+            <div class="grid gap-5 lg:grid-cols-[1.5fr_.7fr_.7fr_.7fr]">
+              <label><span class="mb-2 block font-mono text-[10px] uppercase tracking-[.14em] text-slate-600">Project / Song</span><input id="project-title" class="project-field w-full rounded-lg border border-line bg-black/20 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="Untitled Track"></label>
+              <label><span class="mb-2 block font-mono text-[10px] uppercase tracking-[.14em] text-slate-600">Status</span><select id="project-status" class="project-field w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm outline-none focus:border-acid/50"><option>制作中</option><option>確認待ち</option><option>合意済み</option><option>完了</option></select></label>
+              <label><span class="mb-2 block font-mono text-[10px] uppercase tracking-[.14em] text-slate-600">BPM</span><input id="project-bpm" type="number" min="1" max="400" class="project-field w-full rounded-lg border border-line bg-black/20 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="120"></label>
+              <label><span class="mb-2 block font-mono text-[10px] uppercase tracking-[.14em] text-slate-600">曲の長さ（秒）</span><input id="project-duration" type="number" min="1" class="project-field w-full rounded-lg border border-line bg-black/20 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="180"></label>
+            </div>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <label><span class="mb-2 block font-mono text-[10px] uppercase tracking-[.14em] text-slate-600">Client / Artist</span><input id="project-client" class="project-field w-full rounded-lg border border-line bg-black/20 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="アーティスト名"></label>
+              <label><span class="mb-2 block font-mono text-[10px] uppercase tracking-[.14em] text-slate-600">Deadline</span><input id="project-deadline" type="date" class="project-field w-full rounded-lg border border-line bg-black/20 px-4 py-3 text-sm outline-none focus:border-acid/50"></label>
+            </div>
+            <p id="save-state" class="mt-4 text-right font-mono text-[10px] text-slate-600">LOCAL AUTO-SAVE</p>
+          </div>
+        </section>
+
+        <section class="glass mb-8 overflow-hidden rounded-2xl border border-line" aria-labelledby="log-heading">
+          <div class="border-b border-line px-5 py-5 sm:px-7">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div><p class="font-mono text-[10px] uppercase tracking-[.18em] text-violet-300">Production evidence</p><h2 id="log-heading" class="mt-1 text-lg font-bold">録音・追加トラックログ</h2></div>
+              <p class="max-w-md text-xs leading-5 text-slate-500">本数・貢献範囲・制作負荷（カロリー）を5段階で記録。どんな音を追加したかも残せます。</p>
+            </div>
+          </div>
+          <div class="p-5 sm:p-7">
+            <section class="mb-7 rounded-xl border border-acid/20 bg-acid/[.035] p-5">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div><p class="font-mono text-[10px] uppercase tracking-[.16em] text-acid">AI log parser</p><h3 class="mt-1 text-base font-bold">文章からログを作成</h3><p class="mt-2 text-xs leading-5 text-slate-500">tada / riku、作業内容、本数、貢献範囲、制作負荷、曲中での役割を自由に記述してください。</p></div>
+                <button id="parse-narrative-btn" type="button" class="shrink-0 rounded-lg bg-acid px-4 py-2.5 text-xs font-extrabold text-ink transition hover:bg-[#d5ff6d]">AIで分解</button>
+              </div>
+              <textarea id="log-narrative" rows="5" class="mt-4 w-full resize-y rounded-lg border border-line bg-black/30 px-4 py-3 text-sm leading-6 outline-none placeholder:text-slate-700 focus:border-acid/50" placeholder="例：tadaがサビのメインメロディーと曲構成を作成。rikuはStratのアルペジオを2本、複数セクションに追加。演奏と音作りは高負荷だった。"></textarea>
+              <p id="parse-status" class="mt-2 min-h-5 text-xs text-slate-600" aria-live="polite"></p>
+              <div id="log-drafts" class="mt-5 hidden border-t border-line pt-5">
+                <div class="flex items-center justify-between gap-3"><p class="text-sm font-bold">AIが分解したログ候補</p><span class="font-mono text-[9px] text-amber-400">登録前に内容を確認してください</span></div>
+                <div id="log-draft-list" class="mt-3 space-y-3"></div>
+                <div class="mt-4 flex justify-end"><button id="register-drafts-btn" type="button" class="rounded-lg bg-slate-100 px-5 py-3 text-xs font-extrabold text-ink transition hover:bg-acid">選択した候補を登録</button></div>
+              </div>
+            </section>
+
+            <div class="mb-4 flex items-center gap-3"><span class="h-px flex-1 bg-line"></span><span class="font-mono text-[9px] uppercase tracking-[.16em] text-slate-600">Manual entry</span><span class="h-px flex-1 bg-line"></span></div>            <form id="log-form" class="grid gap-3 md:grid-cols-2 xl:grid-cols-[.6fr_1fr_1.25fr_.48fr_.58fr_.65fr_auto]">
+              <label><span class="mb-2 block text-[10px] text-slate-500">担当</span><select id="log-person" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="A">tada</option><option value="B">riku</option></select></label>
+              <label><span class="mb-2 block text-[10px] text-slate-500">貢献カテゴリ</span><select id="log-type" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="melody">メインメロディー</option><option value="structure">構成・展開</option><option value="motif">モチーフ／フレーズ</option><option value="harmony">コード／ハーモニー</option><option value="beat">ビート</option><option value="bass">ベース</option><option value="guitar">ギター録音</option><option value="instrument">楽器トラック</option><option value="sound">サウンドデザイン</option><option value="sample">サンプル／ループ</option><option value="mix">ミックス</option><option value="delivery">編集・納品</option></select></label>
+              <label><span class="mb-2 block text-[10px] text-slate-500">内容・使用機材</span><input id="log-name" required class="w-full rounded-lg border border-line bg-black/20 px-3 py-3 text-sm" placeholder="例：サビの主旋律 / Stratのアルペジオ"></label>
+              <label><span class="mb-2 block text-[10px] text-slate-500">本数</span><input id="log-count" required type="number" min="1" value="1" class="w-full rounded-lg border border-line bg-black/20 px-3 py-3 text-sm"></label>
+              <label><span class="mb-2 block text-[10px] text-slate-500">貢献範囲</span><select id="log-scope" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="1">1 · ワンポイント（単発）</option><option value="2">2 · 1セクション（Aメロ・サビ等）</option><option value="3" selected>3 · 複数セクション（2つ前後）</option><option value="4">4 · 曲全体（全編）</option><option value="5">5 · 全体を通した継続作業</option></select></label>
+              <label><span class="mb-2 block text-[10px] text-slate-500">制作負荷（カロリー）</span><select id="log-effort" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="1">1 · 軽作業（短時間・定型）</option><option value="2">2 · やや軽い（少し工夫）</option><option value="3" selected>3 · 標準（通常の制作）</option><option value="4">4 · 高負荷（試行錯誤が多い）</option><option value="5">5 · 非常に高負荷（高度・継続的）</option></select></label>
+              <button class="mt-auto rounded-lg bg-slate-100 px-4 py-3 text-sm font-bold text-ink transition hover:bg-acid">追加</button>
+              <label class="md:col-span-2 xl:col-span-7"><span class="mb-2 block text-[10px] text-slate-500">曲中での役割・採用箇所・加工内容</span><input id="log-details" required class="w-full rounded-lg border border-line bg-black/20 px-3 py-3 text-sm" placeholder="例：曲を特定する中心モチーフ。イントロとサビで採用。0:00〜0:18 / 0:52〜1:24"></label>
+            </form>
+
+            <div id="log-summary" class="mt-6 grid gap-3 sm:grid-cols-3"></div>
+            <div id="log-list" class="mt-5 space-y-2"></div>
+            <div id="empty-logs" class="mt-5 rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-600">まだ制作ログがありません。</div>
+          </div>
+        </section>
+        <section class="glass mb-8 overflow-hidden rounded-2xl border border-line shadow-glow" aria-labelledby="analysis-heading">
+          <div class="flex flex-col gap-4 border-b border-line px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <div><p class="font-mono text-[10px] uppercase tracking-[.18em] text-acid">Log intelligence</p><h2 id="analysis-heading" class="mt-1 text-lg font-bold">制作ログ分析</h2><p class="mt-2 text-xs text-slate-500">物量40%と音楽的比重60%を分けて評価します。</p></div>
+            <button id="analyze-logs-btn" type="button" class="rounded-lg bg-slate-100 px-5 py-3 text-sm font-bold text-ink transition hover:bg-acid disabled:cursor-not-allowed disabled:opacity-40">Google AIで分析</button>
+          </div>
+          <div class="p-5 sm:p-7">
+            <div id="analysis-empty" class="rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-600">制作ログを追加すると分析できます。</div>
+            <div id="analysis-result" class="hidden">
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">QUANTITY / 40%</p><h3 class="mt-1 text-sm font-bold">物量</h3></div><p id="quantity-score" class="font-mono text-lg font-bold text-acid">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="quantity-bar-a" class="bg-acid transition-all"></div><div id="quantity-bar-b" class="bg-violet transition-all"></div></div><p id="quantity-detail" class="mt-4 text-xs leading-6 text-slate-500"></p></div>
+                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">MUSICAL WEIGHT / 60%</p><h3 class="mt-1 text-sm font-bold">音楽的比重</h3></div><p id="musical-score" class="font-mono text-lg font-bold text-violet-300">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="musical-bar-a" class="bg-acid transition-all"></div><div id="musical-bar-b" class="bg-violet transition-all"></div></div><p id="musical-detail" class="mt-4 text-xs leading-6 text-slate-500"></p></div>
+              </div>
+              <div class="mt-4 rounded-xl border border-acid/20 bg-acid/[.045] p-5 sm:p-6"><div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p class="font-mono text-[10px] text-acid">ANALYSIS RECOMMENDATION</p><p id="analysis-recommendation" class="mt-2 text-3xl font-extrabold">tada 50% / riku 50%</p></div><button id="apply-analysis-btn" type="button" class="rounded-lg border border-acid/30 px-4 py-3 text-xs font-bold text-acid transition hover:bg-acid hover:text-ink">話し合いの初期値にする</button></div><p id="analysis-summary" class="mt-4 max-w-3xl text-sm leading-7 text-slate-400"></p><ul id="analysis-evidence" class="mt-3 space-y-1 text-xs leading-6 text-slate-500"></ul></div>
+              <p id="analysis-source" class="mt-3 text-right font-mono text-[9px] text-slate-600"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="glass overflow-hidden rounded-2xl border border-line" aria-labelledby="agreement-heading">
+          <div class="border-b border-line px-5 py-5 sm:px-7"><p class="font-mono text-[10px] uppercase tracking-[.18em] text-slate-500">Final conversation</p><h2 id="agreement-heading" class="mt-1 text-lg font-bold">最終合意</h2><p class="mt-2 text-xs text-slate-500">分析は判断材料です。最後は二人の話し合いで決定してください。</p></div>
+          <div class="p-5 sm:p-7"><div class="mb-4 flex justify-between font-mono text-sm font-bold"><span class="text-acid">tada <span id="agreement-a">50%</span></span><span class="text-violet-300"><span id="agreement-b">50%</span> riku</span></div><input id="final-slider" type="range" min="0" max="100" value="50" step="0.5" class="range w-full" aria-label="最終合意のtadaの割合"><div class="mt-4 flex items-center justify-between text-[10px] text-slate-600"><span>tada</span><span>話し合いで調整</span><span>riku</span></div></div>
+        </section>
+
+        <div id="task-list" class="hidden" aria-hidden="true"></div>
+        <input id="song-title" type="hidden">
+      </div>
+    </main>
+
+    <aside id="result-dock" class="fixed inset-x-0 bottom-0 z-30 hidden border-t border-white/10 bg-[#0c0f15]/95 shadow-[0_-20px_60px_rgba(0,0,0,.4)] backdrop-blur-xl" aria-label="総合スプリット結果">
+      <div class="mx-auto max-w-6xl px-5 py-5 sm:px-8">
+        <div class="mb-3 flex items-end justify-between gap-4">
+          <div>
+            <p class="font-mono text-[9px] uppercase tracking-[.2em] text-slate-500">Final split</p>
+            <p id="active-points" class="mt-1 text-xs text-slate-500">Analysis is advisory / Final agreement</p>
+          </div>
+          <button id="copy-btn" type="button" class="rounded-lg border border-line bg-white/[.04] px-4 py-2 text-xs font-bold text-slate-200 transition hover:border-slate-500 hover:bg-white/[.07] focus:outline-none focus:ring-2 focus:ring-acid">Copy Split Data</button>
+        </div>
+        <div class="result-shine flex h-12 overflow-hidden rounded-xl bg-slate-800 font-mono text-sm font-bold" aria-label="スプリット比率グラフ">
+          <div id="bar-a" class="flex min-w-0 items-center justify-start bg-acid px-3 text-ink transition-[width] duration-300"><span id="bar-a-label">tada&nbsp; 50.0%</span></div>
+          <div id="bar-b" class="flex min-w-0 items-center justify-end bg-violet px-3 text-white transition-[width] duration-300"><span id="bar-b-label">riku&nbsp; 50.0%</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <div id="api-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="api-modal-title">
+      <form id="api-form" class="w-full max-w-lg rounded-2xl border border-line bg-panel p-6 shadow-2xl sm:p-7">
+        <p class="font-mono text-[10px] uppercase tracking-[.18em] text-acid">Google connection</p>
+        <h2 id="api-modal-title" class="mt-2 text-xl font-bold">Google Sheets / AI 接続設定</h2>
+        <p class="mt-2 text-xs leading-5 text-slate-500">設定値はGitHubへ保存されません。接続キーはこのタブを閉じると消去されます。</p>
+        <label class="mt-6 block"><span class="mb-2 block text-xs text-slate-400">Apps Script Web App URL</span><input id="api-url-input" type="url" required autocomplete="url" class="w-full rounded-lg border border-line bg-black/30 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="https://script.google.com/macros/s/.../exec"></label>
+        <label class="mt-4 block"><span class="mb-2 block text-xs text-slate-400">接続キー</span><input id="api-key-input" type="password" required autocomplete="off" class="w-full rounded-lg border border-line bg-black/30 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="Script PropertiesのAPI_KEY"></label>
+        <p id="api-modal-error" class="mt-3 hidden text-xs text-rose-400"></p>
+        <div class="mt-6 flex justify-end gap-3"><button id="api-cancel" type="button" class="rounded-lg border border-line px-4 py-2.5 text-xs font-bold text-slate-400 hover:text-white">キャンセル</button><button type="submit" class="rounded-lg bg-acid px-5 py-2.5 text-xs font-extrabold text-ink">接続する</button></div>
+      </form>
+    </div>
++
+    <div id="toast" class="pointer-events-none fixed bottom-40 left-1/2 z-50 -translate-x-1/2 translate-y-3 rounded-lg border border-acid/20 bg-[#171b22] px-4 py-3 text-xs font-semibold text-acid opacity-0 shadow-xl transition duration-200" role="status" aria-live="polite">コピーしました</div>
+  </div>
+
+  <script>
+    const categories = [
+      { name: 'アイデア・構成', code: '01', tasks: [
+        { id: 'reference', name: 'リファレンス選定', points: 3 },
+        { id: 'structure', name: '全体構成', points: 7 }
+      ]},
+      { name: 'メロディ・コード', code: '02', tasks: [
+        { id: 'chords', name: 'メインコード進行', points: 10 },
+        { id: 'topline', name: 'トップライン', points: 10 },
+        { id: 'counter', name: '対旋律', points: 5 }
+      ]},
+      { name: 'ビート・ベース', code: '03', tasks: [
+        { id: 'beat', name: 'メインビート', points: 7 },
+        { id: 'bass', name: 'ベースライン', points: 8 },
+        { id: 'percussion', name: 'パーカッション', points: 5 }
+      ]},
+      { name: 'サウンド・編集', code: '04', tasks: [
+        { id: 'main-sound', name: 'メイン音作り', points: 10 },
+        { id: 'layers', name: '上モノ音作り', points: 5 },
+        { id: 'fx', name: 'FX配置', points: 5 },
+        { id: 'editing', name: '波形・ベロシティ編集', points: 5 }
+      ]},
+      { name: '録音・追加トラック', code: '05', tasks: [
+        { id: 'guitar-recording', name: 'ギター録音', points: 6, adjustable: true },
+        { id: 'instrument-tracks', name: '楽器トラック追加', points: 5, adjustable: true },
+        { id: 'sample-tracks', name: 'サンプル・ループ追加', points: 4, adjustable: true }
+      ]},
+      { name: 'ミックス・納品', code: '06', tasks: [
+        { id: 'level-pan', name: '音量・パン調整', points: 7 },
+        { id: 'eq-comp', name: 'EQ・コンプ', points: 6 },
+        { id: 'space', name: '空間系', points: 5 },
+        { id: 'stems', name: 'ステム書き出し', points: 2 }
+      ]}
+    ];
+
+    const taskList = document.getElementById('task-list');
+    const allTasks = categories.flatMap(category => category.tasks.map(task => ({ ...task, category: category.name })));
+    const maxPoints = allTasks.reduce((sum, task) => sum + task.points, 0);
+    const PERSON_NAMES = { A: 'tada', B: 'riku' };
+    const SCOPE_LEVELS = {
+      1: { label: 'ワンポイント', description: '短い装飾や単発の差し込み' },
+      2: { label: '1セクション', description: 'Aメロ・サビなど1つの構成' },
+      3: { label: '複数セクション', description: '1〜2構成をまたぐ範囲' },
+      4: { label: '曲全体', description: '曲の全編に反映される作業' },
+      5: { label: '全体を通した継続作業', description: '全編にわたり反復・調整した作業' }
+    };
+    const EFFORT_LEVELS = {
+      1: { label: '軽作業', description: '短時間でできる定型作業' },
+      2: { label: 'やや軽い', description: '少し工夫が必要な作業' },
+      3: { label: '標準', description: '通常の制作負荷' },
+      4: { label: '高負荷', description: '専門性や試行錯誤が多い作業' },
+      5: { label: '非常に高負荷', description: '高度で継続的な作業' }
+    };
+    const STORAGE_KEY = 'splitlab_projects_v2';
+    const API_URL_KEY = 'splitlab_apps_script_url';
+    let projects = loadProjects();
+    let activeProjectId = null;
+    let saveTimer;
+    let autoSyncTimer;
+    let syncInFlight = false;
+    let syncQueued = false;
+
+    function loadProjects() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch { return []; }
+    }
+
+    function persistProjects() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    }
+
+    function defaultTaskState() {
+      return Object.fromEntries(allTasks.map(task => [task.id, {
+        enabled: true,
+        a: 50,
+        amount: task.adjustable ? 100 : null
+      }]));
+    }
+
+    function makeProject() {
+      const now = new Date().toISOString();
+      return {
+        id: `project-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        title: 'Untitled Track',
+        status: '制作中',
+        client: '',
+        deadline: '',
+        bpm: '',
+        duration: 180,
+        tasks: defaultTaskState(),
+        logs: [],
+        splitA: 50,
+        splitB: 50,
+        finalA: 50,
+        analysis: null,
+        archived: false,
+        archivedAt: '',
+        createdAt: now,
+        updatedAt: now
+      };
+    }
+
+    function getActiveProject() {
+      return projects.find(project => project.id === activeProjectId) || null;
+    }
+
+    function normalizeLevel(value, fallback = 3) {
+      const level = Math.round(Number(value));
+      return Number.isFinite(level) && level >= 1 && level <= 5 ? level : fallback;
+    }
+
+    function legacyScopeLevel(duration) {
+      const seconds = Math.max(0, Number(duration) || 0);
+      if (!seconds) return 3;
+      if (seconds <= 10) return 1;
+      if (seconds <= 45) return 2;
+      if (seconds <= 90) return 3;
+      if (seconds <= 240) return 4;
+      return 5;
+    }
+
+    function legacyEffortLevel(events) {
+      const count = Math.max(0, Number(events) || 0);
+      if (!count) return 3;
+      if (count <= 10) return 1;
+      if (count <= 50) return 2;
+      if (count <= 150) return 3;
+      if (count <= 400) return 4;
+      return 5;
+    }
+
+    function normalizeLog(log) {
+      return {
+        ...log,
+        scope: normalizeLevel(log.scope, legacyScopeLevel(log.duration)),
+        effort: normalizeLevel(log.effort, legacyEffortLevel(log.events))
+      };
+    }
+
+    function normalizeProject(project) {
+      const defaults = defaultTaskState();
+      const archived = project.archived === true || project.status === 'アーカイブ';
+      const status = project.status === 'アーカイブ' ? '完了' : (project.status || '制作中');
+      return {
+        ...makeProject(),
+        ...project,
+        status,
+        archived,
+        archivedAt: project.archivedAt || '',
+        analysis: project.analysis?.metricVersion === 2 ? project.analysis : null,
+        tasks: Object.fromEntries(allTasks.map(task => [task.id, { ...defaults[task.id], ...(project.tasks?.[task.id] || {}) }])),
+        logs: Array.isArray(project.logs) ? project.logs.map(normalizeLog) : []
+      };
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
+    }
+
+    function scheduleProjectSave() {
+      const project = getActiveProject();
+      if (!project) return;
+      clearTimeout(saveTimer);
+      document.getElementById('save-state').textContent = 'SAVING…';
+      saveTimer = setTimeout(() => {
+        captureProjectFields(project);
+        project.updatedAt = new Date().toISOString();
+        persistProjects();
+        document.getElementById('save-state').textContent = 'SAVED LOCALLY / SYNC PENDING';
+        scheduleAutoSync();
+      }, 180);
+    }
+
+    function captureProjectFields(project) {
+      project.title = document.getElementById('project-title').value.trim() || 'Untitled Track';
+      project.status = document.getElementById('project-status').value;
+      project.bpm = document.getElementById('project-bpm').value;
+      project.duration = Math.max(1, Number(document.getElementById('project-duration').value) || 180);
+      project.client = document.getElementById('project-client').value.trim();
+      project.deadline = document.getElementById('project-deadline').value;
+      document.getElementById('song-title').value = project.title;
+      project.finalA = Number(document.getElementById('final-slider').value);
+      project.splitA = project.finalA;
+      project.splitB = 100 - project.finalA;
+      document.querySelectorAll('.task-row').forEach(row => {
+        const amountSlider = row.querySelector('.amount-slider');
+        project.tasks[row.dataset.taskId] = {
+          enabled: row.querySelector('.task-enabled').checked,
+          a: Number(row.querySelector('.task-slider').value),
+          amount: amountSlider ? Number(amountSlider.value) : null
+        };
+      });
+    }
+
+    function projectCardMarkup(project, archived = false) {
+      const splitA = Number(project.splitA ?? project.finalA ?? 50);
+      const splitB = Number(project.splitB ?? (100 - splitA));
+      return `
+        <article class="glass overflow-hidden rounded-2xl border border-line transition hover:-translate-y-0.5 hover:border-acid/30 hover:shadow-glow">
+          <button type="button" data-open-project="${escapeHtml(project.id)}" class="group block w-full p-5 text-left sm:p-6">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0"><p class="truncate text-lg font-bold group-hover:text-acid">${escapeHtml(project.title)}</p><p class="mt-1 truncate text-xs text-slate-600">${escapeHtml(project.client || 'NO CLIENT')}</p></div>
+              <span class="shrink-0 rounded-full border border-line px-2.5 py-1 font-mono text-[9px] text-slate-400">${archived ? 'ARCHIVED' : escapeHtml(project.status)}</span>
+            </div>
+            <div class="mt-7 grid grid-cols-2 gap-3 border-t border-line pt-4">
+              <div><p class="font-mono text-[9px] text-slate-600">TADA SPLIT</p><p class="mt-1 text-sm font-bold text-acid">${splitA.toFixed(1)}%</p></div>
+              <div><p class="font-mono text-[9px] text-slate-600">RIKU SPLIT</p><p class="mt-1 text-sm font-bold text-violet-300">${splitB.toFixed(1)}%</p></div>
+              <div><p class="font-mono text-[9px] text-slate-600">LOGS</p><p class="mt-1 text-sm font-bold">${project.logs?.length || 0}</p></div>
+              <div><p class="font-mono text-[9px] text-slate-600">DEADLINE</p><p class="mt-1 truncate text-xs font-semibold">${escapeHtml(project.deadline || '—')}</p></div>
+            </div>
+          </button>
+          <div class="flex items-center justify-between border-t border-line px-5 py-3">
+            <span class="font-mono text-[9px] text-slate-600">${project.updatedAt ? new Date(project.updatedAt).toLocaleDateString('ja-JP') : '—'}</span>
+            <button type="button" data-${archived ? 'restore' : 'archive'}-project="${escapeHtml(project.id)}" class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-slate-400 transition hover:border-acid/40 hover:text-acid">${archived ? '復元' : 'アーカイブ'}</button>
+          </div>
+        </article>`;
+    }
+
+    function renderDashboard() {
+      const activeProjects = projects.filter(project => !project.archived);
+      const archivedProjects = projects.filter(project => project.archived);
+      const sortByUpdated = (a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt));
+      document.getElementById('stat-projects').textContent = projects.length;
+      document.getElementById('stat-progress').textContent = activeProjects.filter(project => project.status === '制作中').length;
+      document.getElementById('stat-archived').textContent = archivedProjects.length;
+      document.getElementById('stat-logs').textContent = projects.reduce((sum, project) => sum + (project.logs?.length || 0), 0);
+      document.getElementById('empty-projects').classList.toggle('hidden', activeProjects.length > 0);
+      document.getElementById('empty-archives').classList.toggle('hidden', archivedProjects.length > 0);
+      document.getElementById('project-grid').innerHTML = activeProjects.slice().sort(sortByUpdated).map(project => projectCardMarkup(project)).join('');
+      document.getElementById('archived-grid').innerHTML = archivedProjects.slice().sort(sortByUpdated).map(project => projectCardMarkup(project, true)).join('');
+    }
+    function showDashboard() {
+      const project = getActiveProject();
+      if (project) {
+        captureProjectFields(project);
+        project.updatedAt = new Date().toISOString();
+        persistProjects();
+        scheduleAutoSync();
+      }
+      activeProjectId = null;
+      document.getElementById('dashboard-view').classList.remove('hidden');
+      document.getElementById('project-view').classList.add('hidden');
+      document.getElementById('result-dock').classList.add('hidden');
+      renderDashboard();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openProject(projectId) {
+      const project = projects.find(item => item.id === projectId);
+      if (!project) return;
+      activeProjectId = project.id;
+      document.getElementById('dashboard-view').classList.add('hidden');
+      document.getElementById('project-view').classList.remove('hidden');
+      document.getElementById('result-dock').classList.remove('hidden');
+      document.getElementById('project-title').value = project.title || '';
+      document.getElementById('project-status').value = project.status || '制作中';
+      document.getElementById('project-bpm').value = project.bpm || '';
+      document.getElementById('project-duration').value = project.duration || 180;
+      document.getElementById('project-client').value = project.client || '';
+      document.getElementById('project-deadline').value = project.deadline || '';
+      document.getElementById('song-title').value = project.title || '';
+      document.getElementById('final-slider').value = Number(project.finalA ?? project.splitA ?? project.analysis?.recommendedA ?? 50);
+      document.querySelectorAll('.task-row').forEach(row => {
+        const task = project.tasks[row.dataset.taskId] || defaultTaskState()[row.dataset.taskId];
+        row.querySelector('.task-enabled').checked = task.enabled !== false;
+        row.querySelector('.task-slider').value = Number(task.a ?? 50);
+        const amountSlider = row.querySelector('.amount-slider');
+        if (amountSlider) amountSlider.value = Number(task.amount ?? 100);
+        syncTaskRow(row);
+      });
+      renderProductionLogs();
+      if (project.analysis) renderAnalysis(project.analysis);
+      calculateSplit();
+      document.getElementById('save-state').textContent = 'LOCAL AUTO-SAVE';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    const logTypes = {
+      melody: { label: 'メインメロディー', weight: 10 },
+      structure: { label: '構成・展開', weight: 10 },
+      motif: { label: 'モチーフ／フレーズ', weight: 9 },
+      harmony: { label: 'コード／ハーモニー', weight: 8 },
+      beat: { label: 'ビート', weight: 7 },
+      bass: { label: 'ベース', weight: 7 },
+      guitar: { label: 'ギター録音', weight: 6 },
+      instrument: { label: '楽器トラック', weight: 5 },
+      sound: { label: 'サウンドデザイン', weight: 6 },
+      sample: { label: 'サンプル／ループ', weight: 3 },
+      mix: { label: 'ミックス', weight: 8 },
+      delivery: { label: '編集・納品', weight: 2 }
+    };
+
+    function ratioFor(a, b) {
+      return a + b > 0 ? a / (a + b) * 100 : null;
+    }
+
+    function calculateLocalAnalysis() {
+      const logs = getActiveProject()?.logs || [];
+      const totals = { A: { count: 0, scope: 0, effort: 0, musical: 0 }, B: { count: 0, scope: 0, effort: 0, musical: 0 } };
+      logs.forEach(rawLog => {
+        const log = normalizeLog(rawLog);
+        const person = log.person === 'B' ? 'B' : 'A';
+        const count = Math.max(1, Number(log.count) || 1);
+        totals[person].count += count;
+        totals[person].scope += count * log.scope;
+        totals[person].effort += count * log.effort;
+        totals[person].musical += (logTypes[log.type]?.weight || 4) * log.scope;
+      });
+      const quantityRatios = [
+        ratioFor(totals.A.count, totals.B.count),
+        ratioFor(totals.A.scope, totals.B.scope),
+        ratioFor(totals.A.effort, totals.B.effort)
+      ].filter(value => value !== null);
+      const quantityA = quantityRatios.length ? quantityRatios.reduce((sum, value) => sum + value, 0) / quantityRatios.length : 50;
+      const musicalA = ratioFor(totals.A.musical, totals.B.musical) ?? 50;
+      const recommendedA = quantityA * 0.4 + musicalA * 0.6;
+      return {
+        metricVersion: 2,
+        quantityA,
+        musicalA,
+        recommendedA,
+        summary: '記録された物量とカテゴリ別の音楽的中心性を分けて集計した基準値です。Google AI分析では、役割や採用箇所の説明も加味します。',
+        evidence: [
+          `物量 — tada: ${totals.A.count}本・範囲${totals.A.scope}pt・カロリー${totals.A.effort}pt / riku: ${totals.B.count}本・範囲${totals.B.scope}pt・カロリー${totals.B.effort}pt`,
+          `音楽的比重スコア — tada: ${totals.A.musical} / riku: ${totals.B.musical}`
+        ],
+        quantityDetail: '本数・5段階の貢献範囲・制作負荷（カロリー）を同じ比重で集計',
+        musicalDetail: 'メロディー・構成・モチーフなど曲の中心性に貢献範囲を加味',
+        source: 'LOCAL BASELINE'
+      };
+    }
+
+    function renderAnalysis(result) {
+      if (!result) return;
+      const quantityA = Math.max(0, Math.min(100, Number(result.quantityA) || 0));
+      const musicalA = Math.max(0, Math.min(100, Number(result.musicalA) || 0));
+      const recommendedA = Math.max(0, Math.min(100, Number(result.recommendedA) || 0));
+      document.getElementById('analysis-empty').classList.add('hidden');
+      document.getElementById('analysis-result').classList.remove('hidden');
+      document.getElementById('quantity-score').textContent = `tada ${quantityA.toFixed(0)} / riku ${(100 - quantityA).toFixed(0)}`;
+      document.getElementById('musical-score').textContent = `tada ${musicalA.toFixed(0)} / riku ${(100 - musicalA).toFixed(0)}`;
+      document.getElementById('quantity-bar-a').style.width = `${quantityA}%`;
+      document.getElementById('quantity-bar-b').style.width = `${100 - quantityA}%`;
+      document.getElementById('musical-bar-a').style.width = `${musicalA}%`;
+      document.getElementById('musical-bar-b').style.width = `${100 - musicalA}%`;
+      document.getElementById('quantity-detail').textContent = result.quantityDetail || '本数・貢献範囲・制作負荷から算出';
+      document.getElementById('musical-detail').textContent = result.musicalDetail || '曲の成立への中心性から算出';
+      document.getElementById('analysis-recommendation').textContent = `tada ${recommendedA.toFixed(1)}% / riku ${(100 - recommendedA).toFixed(1)}%`;
+      document.getElementById('analysis-summary').textContent = result.summary || '';
+      document.getElementById('analysis-evidence').innerHTML = (result.evidence || []).map(item => `<li>・${escapeHtml(item)}</li>`).join('');
+      document.getElementById('analysis-source').textContent = result.source || 'GOOGLE AI';
+      const project = getActiveProject();
+      if (project) project.analysis = { ...result, quantityA, musicalA, recommendedA };
+    }
+
+    function renderProductionLogs() {
+      const project = getActiveProject();
+      if (!project) return;
+      project.logs = project.logs.map(normalizeLog);
+      const totals = project.logs.reduce((summary, log) => {
+        const person = log.person === 'B' ? 'B' : 'A';
+        const count = Math.max(1, Number(log.count) || 1);
+        summary[person].count += count;
+        summary[person].scope += count * log.scope;
+        summary[person].effort += count * log.effort;
+        return summary;
+      }, { A: { count: 0, scope: 0, effort: 0 }, B: { count: 0, scope: 0, effort: 0 } });
+      document.getElementById('log-summary').innerHTML = ['A', 'B'].map(person => `<div class="rounded-xl border border-line bg-black/20 p-4"><p class="font-mono text-xs font-bold ${person === 'A' ? 'text-acid' : 'text-violet-300'}">${PERSON_NAMES[person]}</p><p class="mt-3 text-sm">${totals[person].count}本 / 範囲 ${totals[person].scope}pt</p><p class="mt-1 text-xs text-slate-600">制作カロリー ${totals[person].effort}pt</p></div>`).join('') + `<div class="rounded-xl border border-line bg-black/20 p-4"><p class="font-mono text-xs font-bold text-slate-400">TOTAL</p><p class="mt-3 text-sm">${project.logs.length} ログ</p><p class="mt-1 text-xs text-slate-600">音楽的役割を含めて分析</p></div>`;
+      const list = document.getElementById('log-list');
+      document.getElementById('empty-logs').classList.toggle('hidden', project.logs.length > 0);
+      list.innerHTML = project.logs.map(log => `
+        <div class="grid gap-3 rounded-xl border border-line bg-white/[.015] p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+          <span class="grid h-9 w-9 place-items-center rounded-lg ${log.person === 'A' ? 'bg-acid/10 text-acid' : 'bg-violet/10 text-violet-300'} font-mono text-xs font-bold">${escapeHtml(PERSON_NAMES[log.person] || log.person)}</span>
+          <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><p class="font-semibold">${escapeHtml(log.name)}</p><span class="rounded bg-white/[.04] px-2 py-1 text-[9px] text-slate-500">${escapeHtml(logTypes[log.type]?.label || log.type)}</span></div><p class="mt-1 text-xs text-slate-500">${escapeHtml(log.details || '詳細なし')}</p><p class="mt-2 font-mono text-[9px] text-slate-600">${log.count}本 / 範囲 ${log.scope}:${SCOPE_LEVELS[log.scope].label} / カロリー ${log.effort}:${EFFORT_LEVELS[log.effort].label}</p></div>
+          <button type="button" data-remove-log="${escapeHtml(log.id)}" class="text-xs text-slate-600 transition hover:text-rose-400">削除</button>
+        </div>`).join('');
+      document.getElementById('analysis-empty').classList.toggle('hidden', project.logs.length > 0);
+      document.getElementById('analyze-logs-btn').disabled = project.logs.length === 0;
+      if (project.logs.length) renderAnalysis(project.analysis || calculateLocalAnalysis());
+      else document.getElementById('analysis-result').classList.add('hidden');
+    }
+
+    let apiConnectionResolve = null;
+
+    function requestApiConnection() {
+      if (location.protocol === 'file:') {
+        showToast('Google連携はGitHub PagesまたはローカルHTTPサーバーで利用してください');
+        return Promise.resolve(null);
+      }
+      const savedUrl = localStorage.getItem(API_URL_KEY) || '';
+      const sessionKey = sessionStorage.getItem('splitlab_api_key') || '';
+      if (savedUrl && sessionKey) return Promise.resolve({ apiUrl: savedUrl, apiKey: sessionKey });
+      document.getElementById('api-url-input').value = savedUrl;
+      document.getElementById('api-key-input').value = '';
+      document.getElementById('api-modal-error').classList.add('hidden');
+      const modal = document.getElementById('api-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      setTimeout(() => (savedUrl ? document.getElementById('api-key-input') : document.getElementById('api-url-input')).focus(), 0);
+      return new Promise(resolve => { apiConnectionResolve = resolve; });
+    }
+
+    function closeApiModal(connection = null) {
+      const modal = document.getElementById('api-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      if (apiConnectionResolve) apiConnectionResolve(connection);
+      apiConnectionResolve = null;
+    }
+    let parsedLogDrafts = [];
+
+    function levelOptions(levels, selected) {
+      return Object.entries(levels).map(([value, meta]) => `<option value="${value}" ${Number(value) === Number(selected) ? 'selected' : ''}>${value} · ${meta.label}</option>`).join('');
+    }
+
+    function renderLogDrafts() {
+      const container = document.getElementById('log-draft-list');
+      const typeOptions = Object.entries(logTypes).map(([value, meta]) => `<option value="${value}">${meta.label}</option>`).join('');
+      container.innerHTML = parsedLogDrafts.map((draft, index) => `
+        <div class="draft-row rounded-xl border border-line bg-black/25 p-4" data-draft-index="${index}">
+          <div class="flex items-start gap-3">
+            <input type="checkbox" class="draft-selected mt-1 h-4 w-4 accent-[#c7ff3d]" checked aria-label="このログ候補を登録">
+            <div class="min-w-0 flex-1">
+              <div class="grid gap-3 sm:grid-cols-[.55fr_1fr_1.6fr]">
+                <label><span class="mb-1 block text-[9px] text-slate-600">担当</span><select class="draft-person w-full rounded-lg border border-line bg-[#0d1016] px-3 py-2 text-xs"><option value="A" ${draft.person === 'A' ? 'selected' : ''}>tada</option><option value="B" ${draft.person === 'B' ? 'selected' : ''}>riku</option></select></label>
+                <label><span class="mb-1 block text-[9px] text-slate-600">カテゴリ</span><select class="draft-type w-full rounded-lg border border-line bg-[#0d1016] px-3 py-2 text-xs">${typeOptions}</select></label>
+                <label><span class="mb-1 block text-[9px] text-slate-600">内容</span><input class="draft-name w-full rounded-lg border border-line bg-black/30 px-3 py-2 text-xs" value="${escapeHtml(draft.name)}"></label>
+              </div>
+              <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                <label><span class="mb-1 block text-[9px] text-slate-600">本数</span><input type="number" min="1" class="draft-count w-full rounded-lg border border-line bg-black/30 px-3 py-2 text-xs" value="${draft.count}"></label>
+                <label><span class="mb-1 block text-[9px] text-slate-600">貢献範囲</span><select class="draft-scope w-full rounded-lg border border-line bg-[#0d1016] px-3 py-2 text-xs">${levelOptions(SCOPE_LEVELS, draft.scope)}</select></label>
+                <label><span class="mb-1 block text-[9px] text-slate-600">制作負荷（カロリー）</span><select class="draft-effort w-full rounded-lg border border-line bg-[#0d1016] px-3 py-2 text-xs">${levelOptions(EFFORT_LEVELS, draft.effort)}</select></label>
+              </div>
+              <label class="mt-3 block"><span class="mb-1 block text-[9px] text-slate-600">役割・採用箇所</span><textarea rows="2" class="draft-details w-full resize-y rounded-lg border border-line bg-black/30 px-3 py-2 text-xs leading-5">${escapeHtml(draft.details)}</textarea></label>
+              ${draft.uncertainFields?.length ? `<p class="mt-2 text-[10px] text-amber-400">要確認: ${escapeHtml(draft.uncertainFields.join('、'))}</p>` : ''}
+            </div>
+          </div>
+        </div>`).join('');
+      container.querySelectorAll('.draft-row').forEach((row, index) => {
+        row.querySelector('.draft-type').value = parsedLogDrafts[index].type;
+      });
+      document.getElementById('log-drafts').classList.toggle('hidden', parsedLogDrafts.length === 0);
+    }
+
+    async function parseNarrativeWithGoogle() {
+      const text = document.getElementById('log-narrative').value.trim();
+      const status = document.getElementById('parse-status');
+      if (!text) {
+        status.textContent = '制作内容を文章で入力してください。';
+        status.className = 'mt-2 min-h-5 text-xs text-amber-400';
+        return;
+      }
+      const connection = await requestApiConnection();
+      if (!connection) return;
+      const button = document.getElementById('parse-narrative-btn');
+      button.disabled = true;
+      button.textContent = '分解中…';
+      status.textContent = '文章から制作ログを抽出しています…';
+      status.className = 'mt-2 min-h-5 text-xs text-slate-500';
+      try {
+        const project = getActiveProject();
+        const body = new URLSearchParams({ action: 'parseLogs', apiKey: connection.apiKey, payload: JSON.stringify({ text, project: { title: project?.title || '', duration: project?.duration || 180 } }) });
+        const response = await fetch(connection.apiUrl, { method: 'POST', body });
+        const result = await response.json();
+        if (!result.ok) throw new Error(result.error || '文章を分解できませんでした。');
+        parsedLogDrafts = (result.logs || []).map(log => ({
+          person: log.person === 'B' ? 'B' : 'A',
+          type: logTypes[log.type] ? log.type : 'instrument',
+          name: String(log.name || '制作作業'),
+          count: Math.max(1, Number(log.count) || 1),
+          scope: normalizeLevel(log.scope),
+          effort: normalizeLevel(log.effort),
+          details: String(log.details || ''),
+          uncertainFields: Array.isArray(log.uncertainFields) ? log.uncertainFields : []
+        }));
+        renderLogDrafts();
+        status.textContent = `${parsedLogDrafts.length}件のログ候補に分解しました。内容を確認してください。`;
+        status.className = 'mt-2 min-h-5 text-xs text-acid';
+      } catch (error) {
+        parsedLogDrafts = [];
+        renderLogDrafts();
+        status.textContent = `AI分解エラー: ${error.message}`;
+        status.className = 'mt-2 min-h-5 text-xs text-rose-400';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'AIで分解';
+      }
+    }
+    async function analyzeLogsWithGoogle() {
+      const project = getActiveProject();
+      if (!project || !project.logs.length) return;
+      const connection = await requestApiConnection();
+      if (!connection) return;
+      const { apiUrl, apiKey } = connection;
+      const button = document.getElementById('analyze-logs-btn');
+      button.disabled = true;
+      button.textContent = '分析中…';
+      try {
+        const payload = { project: { title: project.title, duration: project.duration }, logs: project.logs, baseline: calculateLocalAnalysis() };
+        const body = new URLSearchParams({ action: 'analyze', apiKey, payload: JSON.stringify(payload) });
+        const response = await fetch(apiUrl, { method: 'POST', body });
+        const result = await response.json();
+        if (!result.ok) throw new Error(result.error || '分析に失敗しました。');
+        renderAnalysis({ ...result.analysis, source: 'GOOGLE GEMINI' });
+        scheduleProjectSave();
+        showToast('Google AIによるログ分析が完了しました');
+      } catch (error) {
+        renderAnalysis({ ...calculateLocalAnalysis(), source: 'LOCAL FALLBACK' });
+        showToast(`AI分析エラー: ${error.message}`);
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Google AIで分析';
+      }
+    }
+
+    function getStoredApiConnection() {
+      if (location.protocol === 'file:') return null;
+      const apiUrl = localStorage.getItem(API_URL_KEY) || '';
+      const apiKey = sessionStorage.getItem('splitlab_api_key') || '';
+      return apiUrl && apiKey ? { apiUrl, apiKey } : null;
+    }
+
+    function scheduleAutoSync(delay = 2000) {
+      if (!getStoredApiConnection()) return;
+      clearTimeout(autoSyncTimer);
+      autoSyncTimer = setTimeout(() => syncWithSheets({ silent: true }), delay);
+    }
+
+    function mergeSyncedProjects(remoteProjects) {
+      const localById = Object.fromEntries(projects.map(project => [project.id, project]));
+      return (remoteProjects || []).map(remoteProject => {
+        const localProject = localById[remoteProject.id];
+        const hasArchived = Object.prototype.hasOwnProperty.call(remoteProject, 'archived');
+        const hasArchivedAt = Object.prototype.hasOwnProperty.call(remoteProject, 'archivedAt');
+        return normalizeProject({
+          ...remoteProject,
+          archived: hasArchived ? remoteProject.archived : (localProject?.archived ?? false),
+          archivedAt: hasArchivedAt ? remoteProject.archivedAt : (localProject?.archivedAt || '')
+        });
+      });
+    }
+
+    async function syncWithSheets(options = {}) {
+      const silent = options && options.silent === true;
+      const connection = silent ? getStoredApiConnection() : await requestApiConnection();
+      if (!connection) return;
+      if (syncInFlight) {
+        syncQueued = true;
+        return;
+      }
+      syncInFlight = true;
+      const { apiUrl, apiKey } = connection;
+      const button = document.getElementById('sync-btn');
+      button.disabled = true;
+      button.textContent = '同期中…';
+      try {
+        const activeProject = getActiveProject();
+        if (!silent && activeProject) {
+          captureProjectFields(activeProject);
+          activeProject.updatedAt = new Date().toISOString();
+          persistProjects();
+        }
+        const body = new URLSearchParams({ action: 'sync', apiKey, payload: JSON.stringify(projects) });
+        const response = await fetch(apiUrl, { method: 'POST', body });
+        const result = await response.json();
+        if (!result.ok) throw new Error(result.error || '同期に失敗しました。');
+        projects = mergeSyncedProjects(result.projects);
+        persistProjects();
+        renderDashboard();
+        if (activeProjectId) document.getElementById('save-state').textContent = 'SAVED / SHEETS SYNCED';
+        if (!silent) showToast(`${projects.length}件をGoogle Sheetsと同期しました`);
+      } catch (error) {
+        if (activeProjectId) document.getElementById('save-state').textContent = 'LOCAL SAVED / SYNC ERROR';
+        if (!silent) showToast(`同期エラー: ${error.message}`);
+      } finally {
+        syncInFlight = false;
+        button.disabled = false;
+        button.textContent = '自動同期';
+        if (syncQueued) {
+          syncQueued = false;
+          scheduleAutoSync(300);
+        }
+      }
+    }
+
+    function taskTemplate(task) {
+      return `
+        <div class="task-row grid gap-4 px-5 py-5 transition sm:grid-cols-[minmax(180px,1fr)_minmax(250px,1.5fr)] sm:items-center sm:px-6" data-task-id="${task.id}" data-points="${task.points}" data-adjustable="${Boolean(task.adjustable)}">
+          <div class="flex items-center gap-3">
+            <label class="relative inline-flex cursor-pointer items-center" title="${task.name}を計算に含める">
+              <input type="checkbox" class="task-enabled peer sr-only" checked aria-label="${task.name}を有効にする">
+              <span class="h-5 w-9 rounded-full bg-slate-700 transition peer-checked:bg-acid/80 peer-focus-visible:ring-2 peer-focus-visible:ring-acid peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-panel after:absolute after:left-[3px] after:top-[3px] after:h-3.5 after:w-3.5 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"></span>
+            </label>
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-slate-200">${task.name}</p>
+              <p class="mt-1 font-mono text-[10px] text-slate-600">${String(task.points).padStart(2, '0')} ${task.adjustable ? 'MAX POINTS' : 'POINTS'}</p>
+            </div>
+          </div>
+          <div>
+            <div class="mb-3 flex items-center justify-between font-mono text-[11px] font-semibold">
+              <span class="text-acid">tada <strong class="value-a ml-1">50%</strong></span>
+              <span class="text-violet-300"><strong class="value-b mr-1">50%</strong> riku</span>
+            </div>
+            <input type="range" min="0" max="100" value="50" step="1" class="range task-slider w-full" aria-label="${task.name}のtadaの貢献割合">
+            ${task.adjustable ? `
+              <div class="mt-4 flex items-center gap-3 border-t border-line/70 pt-3">
+                <span class="shrink-0 font-mono text-[10px] text-slate-500">制作量</span>
+                <input type="range" min="0" max="100" value="100" step="10" class="amount-slider h-1 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-slate-300" aria-label="${task.name}の制作量">
+                <span class="amount-value w-10 text-right font-mono text-[10px] font-semibold text-slate-400">100%</span>
+              </div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    categories.forEach(category => {
+      const section = document.createElement('section');
+      section.className = 'glass overflow-hidden rounded-2xl border border-line';
+      section.innerHTML = `
+        <div class="flex items-center justify-between border-b border-line bg-white/[.015] px-5 py-4 sm:px-6">
+          <div class="flex items-center gap-3">
+            <span class="font-mono text-[10px] text-slate-600">${category.code}</span>
+            <h3 class="text-sm font-bold">${category.name}</h3>
+          </div>
+          <span class="font-mono text-[10px] text-slate-600">${category.tasks.reduce((sum, task) => sum + task.points, 0)} PT</span>
+        </div>
+        <div class="divide-y divide-line">${category.tasks.map(taskTemplate).join('')}</div>`;
+      taskList.appendChild(section);
+    });
+
+    function calculateSplit() {
+      const slider = document.getElementById('final-slider');
+      const a = Math.max(0, Math.min(100, Number(slider.value) || 0));
+      const b = 100 - a;
+      slider.style.setProperty('--fill', `${a}%`);
+      document.getElementById('agreement-a').textContent = `${a.toFixed(1)}%`;
+      document.getElementById('agreement-b').textContent = `${b.toFixed(1)}%`;
+      const project = getActiveProject();
+      if (project) {
+        project.finalA = a;
+        project.splitA = a;
+        project.splitB = b;
+      }
+      renderSplit(a, b, 100);
+      return { a, b, totalPoints: 100 };
+    }
+
+    function renderSplit(a, b, totalPoints) {
+      const barA = document.getElementById('bar-a');
+      const barB = document.getElementById('bar-b');
+      barA.style.width = `${a}%`;
+      barB.style.width = `${b}%`;
+      document.getElementById('bar-a-label').innerHTML = a >= 12 ? `tada&nbsp; ${a.toFixed(1)}%` : a >= 5 ? `${a.toFixed(0)}%` : '';
+      document.getElementById('bar-b-label').innerHTML = b >= 12 ? `riku&nbsp; ${b.toFixed(1)}%` : b >= 5 ? `${b.toFixed(0)}%` : '';
+      const analysis = getActiveProject()?.analysis;
+      document.getElementById('active-points').textContent = analysis
+        ? `分析推奨 tada ${Number(analysis.recommendedA).toFixed(1)}% / 最終合意を優先`
+        : 'ログ分析は参考値 / 最終合意を優先';
+    }
+
+    function syncTaskRow(row) {
+      const slider = row.querySelector('.task-slider');
+      const a = Number(slider.value);
+      slider.style.setProperty('--fill', `${a}%`);
+      row.querySelector('.value-a').textContent = `${a}%`;
+      row.querySelector('.value-b').textContent = `${100 - a}%`;
+      const amountSlider = row.querySelector('.amount-slider');
+      if (amountSlider) row.querySelector('.amount-value').textContent = `${amountSlider.value}%`;
+      row.classList.toggle('is-disabled', !row.querySelector('.task-enabled').checked);
+    }
+
+    function formatPoints(points) {
+      return Number.isInteger(points) ? String(points) : points.toFixed(1);
+    }
+
+    taskList.addEventListener('input', event => {
+      const row = event.target.closest('.task-row');
+      if (!row) return;
+      syncTaskRow(row);
+      calculateSplit();
+      scheduleProjectSave();
+    });
+    taskList.addEventListener('change', event => {
+      const row = event.target.closest('.task-row');
+      if (!row) return;
+      syncTaskRow(row);
+      calculateSplit();
+      scheduleProjectSave();
+    });
+
+    function buildCopyText() {
+      const result = calculateSplit();
+      const project = getActiveProject();
+      const analysis = project?.analysis;
+      const logLines = (project?.logs || []).map(rawLog => {
+        const log = normalizeLog(rawLog);
+        return `${PERSON_NAMES[log.person] || log.person} / ${logTypes[log.type]?.label || log.type} / ${log.name} / ${log.count}本 / 貢献範囲 ${log.scope}:${SCOPE_LEVELS[log.scope].label} / 制作負荷 ${log.effort}:${EFFORT_LEVELS[log.effort].label} / ${log.details || '詳細なし'}`;
+      });
+      return [
+        `SPLIT DATA — ${project?.title || 'Untitled Track'}`,
+        '================================',
+        '',
+        '[制作ログ]',
+        ...(logLines.length ? logLines : ['記録なし']),
+        '',
+        '[分析結果]',
+        analysis ? `物量: tada ${Number(analysis.quantityA).toFixed(1)}% / riku ${(100 - Number(analysis.quantityA)).toFixed(1)}%` : '未分析',
+        analysis ? `音楽的比重: tada ${Number(analysis.musicalA).toFixed(1)}% / riku ${(100 - Number(analysis.musicalA)).toFixed(1)}%` : '',
+        analysis ? `推奨値: tada ${Number(analysis.recommendedA).toFixed(1)}% / riku ${(100 - Number(analysis.recommendedA)).toFixed(1)}%` : '',
+        '',
+        '--------------------------------',
+        `FINAL AGREEMENT: tada ${result.a.toFixed(1)}% / riku ${result.b.toFixed(1)}%`
+      ].filter(line => line !== '').join('\n');
+    }
+
+    document.getElementById('copy-btn').addEventListener('click', async () => {
+      const text = buildCopyText();
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('スプリットデータをコピーしました');
+      } catch {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+        showToast('スプリットデータをコピーしました');
+      }
+    });
+
+    let toastTimer;
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.remove('opacity-0', 'translate-y-3');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.add('opacity-0', 'translate-y-3'), 2200);
+    }
+
+    document.getElementById('api-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const apiUrl = document.getElementById('api-url-input').value.trim();
+      const apiKey = document.getElementById('api-key-input').value;
+      if (!/^https:\/\/script\.google\.com\//.test(apiUrl)) {
+        const error = document.getElementById('api-modal-error');
+        error.textContent = '有効なApps Script Web App URLを入力してください。';
+        error.classList.remove('hidden');
+        return;
+      }
+      localStorage.setItem(API_URL_KEY, apiUrl);
+      sessionStorage.setItem('splitlab_api_key', apiKey);
+      closeApiModal({ apiUrl, apiKey });
+    });
+    document.getElementById('api-cancel').addEventListener('click', () => closeApiModal(null));
+    document.getElementById('api-modal').addEventListener('click', event => {
+      if (event.target.id === 'api-modal') closeApiModal(null);
+    });
+    document.getElementById('new-project-btn').addEventListener('click', () => {
+      const project = makeProject();
+      projects.push(project);
+      persistProjects();
+      scheduleAutoSync();
+      openProject(project.id);
+      document.getElementById('project-title').focus();
+      document.getElementById('project-title').select();
+    });
+
+    document.getElementById('dashboard-view').addEventListener('click', event => {
+      const archiveButton = event.target.closest('[data-archive-project]');
+      const restoreButton = event.target.closest('[data-restore-project]');
+      if (archiveButton) {
+        const project = projects.find(item => item.id === archiveButton.dataset.archiveProject);
+        if (!project || !confirm('「' + project.title + '」をアーカイブしますか？')) return;
+        project.archived = true;
+        project.archivedAt = new Date().toISOString();
+        project.status = '完了';
+        project.updatedAt = project.archivedAt;
+        persistProjects();
+        renderDashboard();
+        scheduleAutoSync();
+        showToast('案件をアーカイブしました');
+        return;
+      }
+      if (restoreButton) {
+        const project = projects.find(item => item.id === restoreButton.dataset.restoreProject);
+        if (!project) return;
+        project.archived = false;
+        project.archivedAt = '';
+        project.updatedAt = new Date().toISOString();
+        persistProjects();
+        renderDashboard();
+        scheduleAutoSync();
+        showToast('案件を一覧へ復元しました');
+        return;
+      }
+      const openButton = event.target.closest('[data-open-project]');
+      if (openButton) openProject(openButton.dataset.openProject);
+    });
+    document.getElementById('toggle-archive-btn').addEventListener('click', () => {
+      const content = document.getElementById('archive-content');
+      const button = document.getElementById('toggle-archive-btn');
+      const willOpen = content.classList.contains('hidden');
+      content.classList.toggle('hidden', !willOpen);
+      button.setAttribute('aria-expanded', String(willOpen));
+      document.getElementById('archive-toggle-label').textContent = willOpen ? '閉じる' : '表示する';
+    });
+    document.getElementById('logo-home').addEventListener('click', event => {
+      event.preventDefault();
+      showDashboard();
+    });
+    document.getElementById('nav-dashboard').addEventListener('click', showDashboard);
+    document.getElementById('back-dashboard').addEventListener('click', showDashboard);
+    document.getElementById('sync-btn').addEventListener('click', syncWithSheets);
+    document.querySelectorAll('.project-field').forEach(field => field.addEventListener('input', scheduleProjectSave));
+
+    document.getElementById('parse-narrative-btn').addEventListener('click', parseNarrativeWithGoogle);
+    document.getElementById('register-drafts-btn').addEventListener('click', () => {
+      const project = getActiveProject();
+      if (!project) return;
+      const selectedLogs = [];
+      document.querySelectorAll('#log-draft-list .draft-row').forEach(row => {
+        if (!row.querySelector('.draft-selected').checked) return;
+        selectedLogs.push({
+          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          person: row.querySelector('.draft-person').value,
+          type: row.querySelector('.draft-type').value,
+          name: row.querySelector('.draft-name').value.trim() || '制作作業',
+          count: Math.max(1, Number(row.querySelector('.draft-count').value) || 1),
+          scope: normalizeLevel(row.querySelector('.draft-scope').value),
+          effort: normalizeLevel(row.querySelector('.draft-effort').value),
+          details: row.querySelector('.draft-details').value.trim(),
+          createdAt: new Date().toISOString()
+        });
+      });
+      if (!selectedLogs.length) {
+        showToast('登録するログ候補を選択してください');
+        return;
+      }
+      project.logs.push(...selectedLogs);
+      project.analysis = null;
+      parsedLogDrafts = [];
+      document.getElementById('log-narrative').value = '';
+      document.getElementById('parse-status').textContent = '';
+      renderLogDrafts();
+      renderProductionLogs();
+      scheduleProjectSave();
+      showToast(`${selectedLogs.length}件の制作ログを登録しました`);
+    });
+    document.getElementById('log-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const project = getActiveProject();
+      if (!project) return;
+      project.logs.push({
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        person: document.getElementById('log-person').value,
+        type: document.getElementById('log-type').value,
+        name: document.getElementById('log-name').value.trim(),
+        count: Math.max(1, Number(document.getElementById('log-count').value) || 1),
+        scope: normalizeLevel(document.getElementById('log-scope').value),
+        effort: normalizeLevel(document.getElementById('log-effort').value),
+        details: document.getElementById('log-details').value.trim(),
+        createdAt: new Date().toISOString()
+      });
+      project.analysis = null;
+      document.getElementById('log-name').value = '';
+      document.getElementById('log-details').value = '';
+      document.getElementById('log-scope').value = '3';
+      document.getElementById('log-effort').value = '3';
+      renderProductionLogs();
+      scheduleProjectSave();
+      showToast('制作ログを追加しました');
+    });
+
+    document.getElementById('log-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-remove-log]');
+      const project = getActiveProject();
+      if (!button || !project || !confirm('この制作ログを削除しますか？')) return;
+      project.logs = project.logs.filter(log => log.id !== button.dataset.removeLog);
+      project.analysis = null;
+      renderProductionLogs();
+      scheduleProjectSave();
+    });
+
+    document.getElementById('analyze-logs-btn').addEventListener('click', analyzeLogsWithGoogle);
+    document.getElementById('apply-analysis-btn').addEventListener('click', () => {
+      const analysis = getActiveProject()?.analysis;
+      if (!analysis) return;
+      document.getElementById('final-slider').value = Math.round(Number(analysis.recommendedA) * 2) / 2;
+      calculateSplit();
+      scheduleProjectSave();
+      showToast('分析推奨値を話し合いの初期値にしました');
+      document.getElementById('final-slider').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    document.getElementById('final-slider').addEventListener('input', () => {
+      calculateSplit();
+      scheduleProjectSave();
+    });
+
+    projects = projects.map(normalizeProject);
+    persistProjects();
+    document.querySelectorAll('.task-row').forEach(syncTaskRow);
+    calculateSplit();
+    renderDashboard();
+    setInterval(() => syncWithSheets({ silent: true }), 60000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') scheduleAutoSync(500);
+    });
+  </script>
+</body>
+</html>
