@@ -192,12 +192,13 @@
               <label><span class="mb-2 block text-[10px] text-slate-500">本数</span><input id="log-count" required type="number" min="1" value="1" class="w-full rounded-lg border border-line bg-black/20 px-3 py-3 text-sm"></label>
               <label><span class="mb-2 block text-[10px] text-slate-500">貢献範囲</span><select id="log-scope" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="1">1 · ワンポイント（単発）</option><option value="2">2 · 1セクション（Aメロ・サビ等）</option><option value="3" selected>3 · 複数セクション（2つ前後）</option><option value="4">4 · 曲全体（全編）</option><option value="5">5 · 全体を通した継続作業</option></select></label>
               <label><span class="mb-2 block text-[10px] text-slate-500">制作負荷（カロリー）</span><select id="log-effort" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="1">1 · 軽作業（短時間・定型）</option><option value="2">2 · やや軽い（少し工夫）</option><option value="3" selected>3 · 標準（通常の制作）</option><option value="4">4 · 高負荷（試行錯誤が多い）</option><option value="5">5 · 非常に高負荷（高度・継続的）</option></select></label>
-              <button class="mt-auto rounded-lg bg-slate-100 px-4 py-3 text-sm font-bold text-ink transition hover:bg-acid">追加</button>
+              <div class="mt-auto flex gap-2"><button id="cancel-log-edit" type="button" class="hidden rounded-lg border border-line px-3 py-3 text-xs font-bold text-slate-400 hover:text-white">キャンセル</button><button id="log-submit-btn" class="flex-1 rounded-lg bg-slate-100 px-4 py-3 text-sm font-bold text-ink transition hover:bg-acid">追加</button></div>
               <label class="md:col-span-2 xl:col-span-7"><span class="mb-2 block text-[10px] text-slate-500">曲中での役割・採用箇所・加工内容</span><input id="log-details" required class="w-full rounded-lg border border-line bg-black/20 px-3 py-3 text-sm" placeholder="例：曲を特定する中心モチーフ。イントロとサビで採用。0:00〜0:18 / 0:52〜1:24"></label>
             </form>
 
             <div id="log-summary" class="mt-6 grid gap-3 sm:grid-cols-3"></div>
-            <div id="log-list" class="mt-5 space-y-2"></div>
+            <p class="mt-4 text-right text-[10px] text-slate-600">ログをダブルクリック、または「編集」で内容を変更できます</p>
+            <div id="log-list" class="mt-2 space-y-2"></div>
             <div id="empty-logs" class="mt-5 rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-600">まだ制作ログがありません。</div>
           </div>
         </section>
@@ -596,6 +597,7 @@
       const project = projects.find(item => item.id === projectId);
       if (!project) return;
       activeProjectId = project.id;
+      resetLogForm();
       document.getElementById('dashboard-view').classList.add('hidden');
       document.getElementById('project-view').classList.remove('hidden');
       document.getElementById('result-dock').classList.remove('hidden');
@@ -716,10 +718,10 @@
       const list = document.getElementById('log-list');
       document.getElementById('empty-logs').classList.toggle('hidden', project.logs.length > 0);
       list.innerHTML = project.logs.map(log => `
-        <div class="grid gap-3 rounded-xl border border-line bg-white/[.015] p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+        <div data-log-id="${escapeHtml(log.id)}" tabindex="0" title="ダブルクリックで編集" class="production-log-row grid cursor-default gap-3 rounded-xl border border-line bg-white/[.015] p-4 transition hover:border-slate-600 focus:outline-none focus:ring-1 focus:ring-acid/40 sm:grid-cols-[auto_1fr_auto] sm:items-center">
           <span class="grid h-9 w-9 place-items-center rounded-lg ${log.person === 'A' ? 'bg-acid/10 text-acid' : 'bg-violet/10 text-violet-300'} font-mono text-xs font-bold">${escapeHtml(PERSON_NAMES[log.person] || log.person)}</span>
           <div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><p class="font-semibold">${escapeHtml(log.name)}</p><span class="rounded bg-white/[.04] px-2 py-1 text-[9px] text-slate-500">${escapeHtml(logTypes[log.type]?.label || log.type)}</span></div><p class="mt-1 text-xs text-slate-500">${escapeHtml(log.details || '詳細なし')}</p><p class="mt-2 font-mono text-[9px] text-slate-600">${log.count}本 / 範囲 ${log.scope}:${SCOPE_LEVELS[log.scope].label} / カロリー ${log.effort}:${EFFORT_LEVELS[log.effort].label}</p></div>
-          <button type="button" data-remove-log="${escapeHtml(log.id)}" class="text-xs text-slate-600 transition hover:text-rose-400">削除</button>
+          <div class="flex items-center justify-end gap-3"><button type="button" data-edit-log="${escapeHtml(log.id)}" class="text-xs text-slate-500 transition hover:text-acid">編集</button><button type="button" data-remove-log="${escapeHtml(log.id)}" class="text-xs text-slate-600 transition hover:text-rose-400">削除</button></div>
         </div>`).join('');
       document.getElementById('analysis-empty').classList.toggle('hidden', project.logs.length > 0);
       document.getElementById('analyze-logs-btn').disabled = project.logs.length === 0;
@@ -779,7 +781,36 @@
       modal.classList.remove('flex');
       pendingDeleteProjectId = null;
     }
+    let editingLogId = null;
     let parsedLogDrafts = [];
+
+    function resetLogForm() {
+      editingLogId = null;
+      document.getElementById('log-name').value = '';
+      document.getElementById('log-details').value = '';
+      document.getElementById('log-count').value = '1';
+      document.getElementById('log-scope').value = '3';
+      document.getElementById('log-effort').value = '3';
+      document.getElementById('log-submit-btn').textContent = '追加';
+      document.getElementById('cancel-log-edit').classList.add('hidden');
+    }
+
+    function beginLogEdit(logId) {
+      const log = getActiveProject()?.logs.find(item => String(item.id) === String(logId));
+      if (!log) return;
+      editingLogId = log.id;
+      document.getElementById('log-person').value = log.person === 'B' ? 'B' : 'A';
+      document.getElementById('log-type').value = logTypes[log.type] ? log.type : 'instrument';
+      document.getElementById('log-name').value = log.name || '';
+      document.getElementById('log-count').value = String(Math.max(1, Number(log.count) || 1));
+      document.getElementById('log-scope').value = String(normalizeLevel(log.scope));
+      document.getElementById('log-effort').value = String(normalizeLevel(log.effort));
+      document.getElementById('log-details').value = log.details || '';
+      document.getElementById('log-submit-btn').textContent = '変更を保存';
+      document.getElementById('cancel-log-edit').classList.remove('hidden');
+      document.getElementById('log-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => document.getElementById('log-name').focus(), 250);
+    }
 
     function levelOptions(levels, selected) {
       return Object.entries(levels).map(([value, meta]) => `<option value="${value}" ${Number(value) === Number(selected) ? 'selected' : ''}>${value} · ${meta.label}</option>`).join('');
@@ -1346,37 +1377,65 @@
       event.preventDefault();
       const project = getActiveProject();
       if (!project) return;
-      project.logs.push({
-        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      const values = {
         person: document.getElementById('log-person').value,
         type: document.getElementById('log-type').value,
         name: document.getElementById('log-name').value.trim(),
         count: Math.max(1, Number(document.getElementById('log-count').value) || 1),
         scope: normalizeLevel(document.getElementById('log-scope').value),
         effort: normalizeLevel(document.getElementById('log-effort').value),
-        details: document.getElementById('log-details').value.trim(),
-        createdAt: new Date().toISOString()
-      });
+        details: document.getElementById('log-details').value.trim()
+      };
+      const editingIndex = editingLogId === null ? -1 : project.logs.findIndex(log => String(log.id) === String(editingLogId));
+      if (editingIndex >= 0) {
+        project.logs[editingIndex] = { ...project.logs[editingIndex], ...values };
+      } else {
+        project.logs.push({
+          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          ...values,
+          createdAt: new Date().toISOString()
+        });
+      }
+      const wasEditing = editingIndex >= 0;
       project.analysis = null;
-      document.getElementById('log-name').value = '';
-      document.getElementById('log-details').value = '';
-      document.getElementById('log-scope').value = '3';
-      document.getElementById('log-effort').value = '3';
+      resetLogForm();
       renderProductionLogs();
       scheduleProjectSave();
-      showToast('制作ログを追加しました');
+      showToast(wasEditing ? '制作ログを更新しました' : '制作ログを追加しました');
+    });
+
+    document.getElementById('cancel-log-edit').addEventListener('click', () => {
+      resetLogForm();
+      showToast('ログ編集をキャンセルしました');
+    });
+
+    document.getElementById('log-list').addEventListener('dblclick', event => {
+      if (event.target.closest('button, input, select, textarea')) return;
+      const row = event.target.closest('[data-log-id]');
+      if (row) beginLogEdit(row.dataset.logId);
+    });
+
+    document.getElementById('log-list').addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || event.target.closest('button')) return;
+      const row = event.target.closest('[data-log-id]');
+      if (row) beginLogEdit(row.dataset.logId);
     });
 
     document.getElementById('log-list').addEventListener('click', event => {
-      const button = event.target.closest('[data-remove-log]');
+      const editButton = event.target.closest('[data-edit-log]');
+      if (editButton) {
+        beginLogEdit(editButton.dataset.editLog);
+        return;
+      }
+      const removeButton = event.target.closest('[data-remove-log]');
       const project = getActiveProject();
-      if (!button || !project || !confirm('この制作ログを削除しますか？')) return;
-      project.logs = project.logs.filter(log => log.id !== button.dataset.removeLog);
+      if (!removeButton || !project || !confirm('この制作ログを削除しますか？')) return;
+      project.logs = project.logs.filter(log => String(log.id) !== String(removeButton.dataset.removeLog));
+      if (String(editingLogId) === String(removeButton.dataset.removeLog)) resetLogForm();
       project.analysis = null;
       renderProductionLogs();
       scheduleProjectSave();
     });
-
     document.getElementById('analyze-logs-btn').addEventListener('click', analyzeLogsWithGoogle);
     document.getElementById('apply-analysis-btn').addEventListener('click', () => {
       const analysis = getActiveProject()?.analysis;
