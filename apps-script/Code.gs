@@ -321,7 +321,7 @@ function parseNarrative_(payload) {
   const prompt = [
     '音楽制作コライトの作業報告を、登録可能な制作ログへ分解してください。',
     '複数の担当者、作業、カテゴリが含まれる場合は必ず別ログに分けてください。文章に書かれていない数値や機材、採用箇所は推測しないでください。',
-    '担当者はtadaならA、rikuならB。不明なら空文字にしてuncertainFieldsへ「担当」を追加してください。',
+    '担当者は必ず名前で扱い、tadaまたはrikuを返してください。不明なら空文字にしてuncertainFieldsへ「担当」を追加してください。記号や代替名で表現しないでください。',
     'typeは次から選択: melody, structure, motif, harmony, beat, bass, guitar, instrument, sound, sample, mix, delivery。',
     'countは本数。不明なら1。scopeは貢献範囲、effortは制作負荷（カロリー）を次の5段階から選んでください。',
     'scope: 1=ワンポイント、2=1セクション、3=複数セクション（1〜2構成）、4=曲全体、5=全体を通した継続作業。',
@@ -329,7 +329,7 @@ function parseNarrative_(payload) {
     '原文から判断できないscopeまたはeffortは中立値3にし、uncertainFieldsへ「貢献範囲」または「制作負荷」を追加してください。',
     'nameは短い作業名。detailsには曲中での役割、使用機材、加工、採用箇所など、原文にある事実を残してください。',
     '不明または曖昧な項目名をuncertainFields配列に入れてください。最大20件です。',
-    'JSONのみを返してください。形式: {"logs":[{"person":"A|B|","type":"...","name":"...","count":1,"scope":3,"effort":3,"details":"...","uncertainFields":["担当","貢献範囲"]}]}',
+    'JSONのみを返してください。形式: {"logs":[{"person":"tada|riku|","type":"...","name":"...","count":1,"scope":3,"effort":3,"details":"...","uncertainFields":["担当","貢献範囲"]}]}',
     `案件情報: ${JSON.stringify(payload.project || {})}`,
     `作業報告: ${text}`
   ].join('\n');
@@ -354,7 +354,8 @@ function parseNarrative_(payload) {
   const logs = Array.isArray(parsed.logs) ? parsed.logs.slice(0, 20) : [];
   return logs.map(log => {
     const uncertain = Array.isArray(log.uncertainFields) ? log.uncertainFields.map(String) : [];
-    const person = log.person === 'B' ? 'B' : log.person === 'A' ? 'A' : '';
+    const personName = String(log.person || '').trim().toLowerCase();
+    const person = personName === 'riku' ? 'B' : personName === 'tada' ? 'A' : '';
     const type = allowedTypes.indexOf(log.type) >= 0 ? log.type : 'instrument';
     if (!person && uncertain.indexOf('担当') < 0) uncertain.push('担当');
     if (allowedTypes.indexOf(log.type) < 0 && uncertain.indexOf('カテゴリ') < 0) uncertain.push('カテゴリ');
@@ -379,13 +380,25 @@ function analyzeProject_(payload) {
   const model = properties.getProperty('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
   if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured.');
   const baseline = payload.baseline || {};
+  const namedLogs = payload.logs.map(log => ({
+    person: log.person === 'B' ? 'riku' : 'tada',
+    type: log.type,
+    name: log.name,
+    count: log.count,
+    scope: log.scope,
+    effort: log.effort,
+    details: log.details
+  }));
   const prompt = [
     'あなたは音楽制作コライトの貢献分析者です。品質や人物の優劣ではなく、完成曲の成立に対する音楽的中心性だけを評価してください。',
     'メインメロディー、曲構成、固有モチーフは高い比重。コード、ビート、ベース、ミックスは曲への影響範囲で評価。scopeは影響範囲、effortは制作負荷として扱い、単純なトラック追加やサンプル配置は物量が多くても音楽的比重を過大評価しないでください。',
-    'tada（内部値A）の音楽的比重を0〜100のmusicalAで返してください。証拠はログに書かれた事実だけを使い、推測しないでください。',
-    'JSONのみを返してください。形式: {"musicalA":number,"summary":string,"evidence":[string],"musicalDetail":string}',
+    '担当者はtadaとrikuです。回答文では必ずこの名前を使い、記号や代替名で表現しないでください。',
+    'tadaの音楽的比重を0〜100のtadaMusicalPercentで返してください。証拠はログに書かれた事実だけを使い、推測しないでください。',
+    '物量の割合はシステムが本数・貢献範囲・制作負荷から算出済みです。割合を変更せず、quantityCommentには両者の物量差とその主な理由を、具体的な名前・本数・範囲・負荷に触れて簡潔に説明してください。',
+    'JSONのみを返してください。形式: {"tadaMusicalPercent":number,"quantityComment":string,"summary":string,"evidence":[string],"musicalDetail":string}',
     `案件: ${JSON.stringify(payload.project || {})}`,
-    `制作ログ: ${JSON.stringify(payload.logs)}`
+    `物量集計: ${JSON.stringify({ quantityTadaPercent: baseline.quantityA, detail: baseline.quantityDetail, evidence: baseline.evidence })}`,
+    `制作ログ: ${JSON.stringify(namedLogs)}`
   ].join('\n');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const response = UrlFetchApp.fetch(url, {
@@ -409,13 +422,13 @@ function analyzeProject_(payload) {
   if (!text) throw new Error('Gemini API returned no analysis.');
   const parsed = JSON.parse(text);
   const quantityA = clamp_(Number(baseline.quantityA), 0, 100, 50);
-  const musicalA = clamp_(Number(parsed.musicalA), 0, 100, 50);
+  const musicalA = clamp_(Number(parsed.tadaMusicalPercent), 0, 100, 50);
   return {
     metricVersion: 2,
     quantityA: quantityA,
     musicalA: musicalA,
     recommendedA: quantityA * 0.4 + musicalA * 0.6,
-    quantityDetail: baseline.quantityDetail || '本数・貢献範囲・制作負荷から機械算出',
+    quantityDetail: parsed.quantityComment || baseline.quantityDetail || '本数・貢献範囲・制作負荷から機械算出',
     musicalDetail: parsed.musicalDetail || '制作ログの役割と採用範囲から評価',
     summary: parsed.summary || '',
     evidence: Array.isArray(parsed.evidence) ? parsed.evidence.slice(0, 6) : [],

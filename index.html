@@ -681,6 +681,15 @@
 
     function renderAnalysis(result) {
       if (!result) return;
+      const usePersonNames = value => String(value || '')
+        .replace(/Person\s*A/gi, 'tada')
+        .replace(/Person\s*B/gi, 'riku')
+        .replace(/担当\s*A/g, 'tada')
+        .replace(/担当\s*B/g, 'riku')
+        .replace(/\bA(?=[はがのにをへもと、。])/g, 'tada')
+        .replace(/\bB(?=[はがのにをへもと、。])/g, 'riku')
+        .replace(/(^|[\s（(・:：,\/])A(?=$|[\s）)・:：,\/])/g, '$1tada')
+        .replace(/(^|[\s（(・:：,\/])B(?=$|[\s）)・:：,\/])/g, '$1riku');
       const quantityA = Math.max(0, Math.min(100, Number(result.quantityA) || 0));
       const musicalA = Math.max(0, Math.min(100, Number(result.musicalA) || 0));
       const recommendedA = Math.max(0, Math.min(100, Number(result.recommendedA) || 0));
@@ -692,11 +701,11 @@
       document.getElementById('quantity-bar-b').style.width = `${100 - quantityA}%`;
       document.getElementById('musical-bar-a').style.width = `${musicalA}%`;
       document.getElementById('musical-bar-b').style.width = `${100 - musicalA}%`;
-      document.getElementById('quantity-detail').textContent = result.quantityDetail || '本数・貢献範囲・制作負荷から算出';
-      document.getElementById('musical-detail').textContent = result.musicalDetail || '曲の成立への中心性から算出';
+      document.getElementById('quantity-detail').textContent = usePersonNames(result.quantityDetail || '本数・貢献範囲・制作負荷から算出');
+      document.getElementById('musical-detail').textContent = usePersonNames(result.musicalDetail || '曲の成立への中心性から算出');
       document.getElementById('analysis-recommendation').textContent = `tada ${recommendedA.toFixed(1)}% / riku ${(100 - recommendedA).toFixed(1)}%`;
-      document.getElementById('analysis-summary').textContent = result.summary || '';
-      document.getElementById('analysis-evidence').innerHTML = (result.evidence || []).map(item => `<li>・${escapeHtml(item)}</li>`).join('');
+      document.getElementById('analysis-summary').textContent = usePersonNames(result.summary || '');
+      document.getElementById('analysis-evidence').innerHTML = (result.evidence || []).map(item => `<li>・${escapeHtml(usePersonNames(item))}</li>`).join('');
       document.getElementById('analysis-source').textContent = result.source || 'GOOGLE AI';
       const project = getActiveProject();
       if (project) project.analysis = { ...result, quantityA, musicalA, recommendedA };
