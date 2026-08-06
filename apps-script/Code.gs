@@ -9,6 +9,8 @@ const LOG_HEADERS = [
 ];
 const DELETED_PROJECT_HEADERS = PROJECT_HEADERS.concat(['deletedAt']);
 const DELETED_LOG_HEADERS = LOG_HEADERS.concat(['projectTitle', 'deletedAt']);
+const BETA_ANALYSIS_HEADERS = ['projectId', 'projectTitle', 'status', 'analysisJson', 'updatedAt', 'confirmedAt'];
+const DELETED_BETA_ANALYSIS_HEADERS = BETA_ANALYSIS_HEADERS.concat(['deletedAt']);
 
 /**
  * Run once from the Apps Script editor after setting SHEET_ID and API_KEY
@@ -20,6 +22,8 @@ function setupDatabase() {
   ensureSheet_(spreadsheet, 'ProductionLogs', LOG_HEADERS);
   ensureSheet_(spreadsheet, 'DeletedProjects', DELETED_PROJECT_HEADERS);
   ensureSheet_(spreadsheet, 'DeletedProductionLogs', DELETED_LOG_HEADERS);
+  ensureSheet_(spreadsheet, 'BetaAnalyses', BETA_ANALYSIS_HEADERS);
+  ensureSheet_(spreadsheet, 'DeletedBetaAnalyses', DELETED_BETA_ANALYSIS_HEADERS);
   return 'SPLITLAB database is ready.';
 }
 
@@ -27,7 +31,7 @@ function doGet() {
   return json_({
     ok: true,
     service: 'SPLITLAB Sheets API',
-    version: 2
+    version: 3
   });
 }
 
@@ -49,6 +53,15 @@ function doPost(event) {
     }
     if (parameters.action === 'analyze') {
       return json_({ ok: true, analysis: analyzeProject_(payload) });
+    }
+    if (parameters.action === 'loadBeta') {
+      return json_({ ok: true, ...loadBetaContext_(payload) });
+    }
+    if (parameters.action === 'analyzeBeta') {
+      return json_({ ok: true, analysis: analyzeBeta_(payload) });
+    }
+    if (parameters.action === 'saveBeta') {
+      return json_({ ok: true, analysis: saveBetaAnalysis_(payload) });
     }
     if (parameters.action === 'deleteProject') {
       if (!payload || !payload.projectId) throw new Error('Project ID is required.');
@@ -157,6 +170,8 @@ function deleteProject_(projectId) {
     const logSheet = ensureSheet_(spreadsheet, 'ProductionLogs', LOG_HEADERS);
     const deletedProjectSheet = ensureSheet_(spreadsheet, 'DeletedProjects', DELETED_PROJECT_HEADERS);
     const deletedLogSheet = ensureSheet_(spreadsheet, 'DeletedProductionLogs', DELETED_LOG_HEADERS);
+    const betaSheet = ensureSheet_(spreadsheet, 'BetaAnalyses', BETA_ANALYSIS_HEADERS);
+    const deletedBetaSheet = ensureSheet_(spreadsheet, 'DeletedBetaAnalyses', DELETED_BETA_ANALYSIS_HEADERS);
     const projectRowNumber = findRowById_(projectSheet, projectId);
     if (!projectRowNumber) throw new Error('案件が見つかりません。先に同期してください。');
 
@@ -183,12 +198,22 @@ function deleteProject_(projectId) {
       deletedLogSheet.getRange(deletedLogSheet.getLastRow() + 1, 1, deletedLogRows.length, DELETED_LOG_HEADERS.length).setValues(deletedLogRows);
     }
 
+    const betaRowNumber = findRowById_(betaSheet, projectId);
+    let archivedBetaAnalysis = false;
+    if (betaRowNumber) {
+      const betaRow = betaSheet.getRange(betaRowNumber, 1, 1, BETA_ANALYSIS_HEADERS.length).getValues()[0];
+      deletedBetaSheet.appendRow(betaRow.concat([deletedAt]));
+      deleteDataRows_(betaSheet, [betaRowNumber]);
+      archivedBetaAnalysis = true;
+    }
+
     deleteDataRows_(logSheet, logRowsToDelete);
     deleteDataRows_(projectSheet, [projectRowNumber]);
     SpreadsheetApp.flush();
     return {
       deletedProjectId: String(projectId),
       archivedLogCount: deletedLogRows.length,
+      archivedBetaAnalysis: archivedBetaAnalysis,
       projects: readProjects_(projectSheet, logSheet),
       serverTime: new Date().toISOString()
     };
@@ -370,6 +395,256 @@ function parseNarrative_(payload) {
       uncertainFields: uncertain.slice(0, 8)
     };
   });
+}
+function loadBetaContext_(payload) {
+  const projectId = payload && String(payload.projectId || '').trim();
+  if (!projectId) throw new Error('案件IDがありません。');
+  const spreadsheet = getSpreadsheet_();
+  const projectSheet = ensureSheet_(spreadsheet, 'Projects', PROJECT_HEADERS);
+  const logSheet = ensureSheet_(spreadsheet, 'ProductionLogs', LOG_HEADERS);
+  const betaSheet = ensureSheet_(spreadsheet, 'BetaAnalyses', BETA_ANALYSIS_HEADERS);
+  const project = readProjects_(projectSheet, logSheet).find(item => String(item.id) === projectId);
+  if (!project) throw new Error('案件が見つかりません。先にメインページで同期してください。');
+  const betaRecord = readRows_(betaSheet, BETA_ANALYSIS_HEADERS).find(item => String(item.projectId) === projectId);
+  return {
+    project: project,
+    analysis: betaRecord ? parseJson_(betaRecord.analysisJson, null) : null,
+    serverTime: new Date().toISOString()
+  };
+}
+
+function analyzeBeta_(payload) {
+  if (!payload || !Array.isArray(payload.logs) || !payload.logs.length) {
+    throw new Error('分析する制作ログがありません。');
+  }
+  if (payload.logs.length > 200) throw new Error('制作ログは200件以内で分析してください。');
+  const properties = PropertiesService.getScriptProperties();
+  const geminiKey = properties.getProperty('GEMINI_API_KEY');
+  const model = properties.getProperty('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
+  if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured.');
+  const namedLogs = payload.logs.map(log => ({
+    id: String(log.id || ''),
+    person: String(log.person || '').toLowerCase() === 'riku' || log.person === 'B' ? 'riku' : 'tada',
+    category: String(log.type || 'instrument'),
+    name: String(log.name || ''),
+    scope: level_(log.scope, 3),
+    details: String(log.details || '')
+  }));
+  const project = payload.project || {};
+  const projectSummary = {
+    title: String(project.title || 'Untitled Track'),
+    status: String(project.status || ''),
+    client: String(project.client || ''),
+    bpm: Number(project.bpm) || '',
+    duration: Number(project.duration) || 0
+  };
+  const prompt = [
+    'あなたは音楽制作コライトの構造的な貢献を整理する分析者です。人物の優劣、作業時間、制作負荷、演奏技術の上手さ、好みは評価しません。完成曲へ残った音楽的な影響だけを整理してください。',
+    '担当者名はtadaとrikuです。回答文とpersonには必ずこの名前を使い、記号・頭文字・代替名を使用しないでください。',
+    '関連する複数ログが同じメロディー、モチーフ、コード、ビート、音色、ミックス処理を指す場合は、必ず1つのmusical elementへ統合してください。ログ件数を貢献点にしないでください。',
+    'カテゴリは melody, structure, motif, harmony, beat, bass, guitar, instrument, sound, sample, mix, delivery のいずれかです。完成曲に実際に存在するカテゴリだけに重要度を与え、categoryWeightsのweight合計を100にしてください。',
+    '各elementのidentityScoreは曲の同一性・核への近さ、scopeScoreは完成曲での影響範囲を1〜5で評価してください。',
+    'contributorsのroleScoreは 1=微調整、2=整理・統合、3=発展、4=大幅な変形・再構築、5=核となる原案。roleには短い日本語の役割名を入れてください。',
+    'adoptionScoreは最終版への残存度を0〜5で評価し、完全に不採用なら0にしてください。irreplaceabilityScoreはその貢献を抜いた場合に曲の印象・成立が変わる程度を1〜5で評価してください。',
+    '各点数には制作ログに明記された事実だけを根拠としてevidenceへ日本語で記載し、推測しないでください。confidenceは0〜1です。根拠不足は中立値3（adoptionのみ3）としconfidenceを0.69以下にしてください。',
+    'AIは最終割合を決めません。割合・人物評価・勝敗に関する文章を出さないでください。',
+    'JSONのみを返してください。形式: {"summary":"分析の短い説明","categoryWeights":[{"category":"melody","weight":25,"reason":"理由","confidence":0.8}],"elements":[{"id":"element-1","name":"サビの主旋律","category":"melody","identityScore":5,"scopeScore":3,"evidence":"根拠","confidence":0.9,"contributors":[{"person":"tada","role":"核となる原案","roleScore":5,"adoptionScore":5,"irreplaceabilityScore":5,"evidence":"根拠","confidence":0.9}]}]}',
+    `案件: ${JSON.stringify(projectSummary)}`,
+    `制作ログ: ${JSON.stringify(namedLogs)}`
+  ].join('\n');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const response = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'x-goog-api-key': geminiKey },
+    payload: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.08, responseMimeType: 'application/json' }
+    }),
+    muteHttpExceptions: true
+  });
+  const status = response.getResponseCode();
+  const responseBody = response.getContentText();
+  if (status < 200 || status >= 300) throw new Error(`Gemini API error ${status}: ${responseBody.slice(0, 300)}`);
+  const geminiResponse = JSON.parse(responseBody);
+  const responseText = geminiResponse.candidates && geminiResponse.candidates[0] && geminiResponse.candidates[0].content.parts[0].text;
+  if (!responseText) throw new Error('Gemini API returned no beta analysis.');
+  const normalized = normalizeBetaAnalysis_(JSON.parse(responseText), model);
+  normalized.calculation = calculateBetaScores_(normalized);
+  return normalized;
+}
+
+function saveBetaAnalysis_(payload) {
+  const projectId = payload && String(payload.projectId || '').trim();
+  if (!projectId || !payload.analysis) throw new Error('保存するベータ分析がありません。');
+  const status = payload.status === 'confirmed' ? 'confirmed' : 'draft';
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(8000)) throw new Error('別端末の保存処理中です。少し待って再試行してください。');
+  try {
+    const spreadsheet = getSpreadsheet_();
+    const betaSheet = ensureSheet_(spreadsheet, 'BetaAnalyses', BETA_ANALYSIS_HEADERS);
+    const normalized = normalizeBetaAnalysis_(payload.analysis, String(payload.analysis.model || 'manual-review'));
+    normalized.status = status;
+    normalized.updatedAt = new Date().toISOString();
+    normalized.confirmedAt = status === 'confirmed' ? normalized.updatedAt : '';
+    normalized.calculation = calculateBetaScores_(normalized);
+    const projectTitle = String(payload.projectTitle || 'Untitled Track').slice(0, 300);
+    const row = [projectId, projectTitle, status, JSON.stringify(normalized), normalized.updatedAt, normalized.confirmedAt];
+    const rowNumber = findRowById_(betaSheet, projectId);
+    if (rowNumber) betaSheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
+    else betaSheet.appendRow(row);
+    SpreadsheetApp.flush();
+    return normalized;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function normalizeBetaAnalysis_(input, model) {
+  const source = input && typeof input === 'object' ? input : {};
+  const allowedCategories = ['melody', 'structure', 'motif', 'harmony', 'beat', 'bass', 'guitar', 'instrument', 'sound', 'sample', 'mix', 'delivery'];
+  const elements = (Array.isArray(source.elements) ? source.elements : []).slice(0, 40).map((element, elementIndex) => {
+    const category = allowedCategories.indexOf(String(element.category || '')) >= 0 ? String(element.category) : 'instrument';
+    const contributorsByName = {};
+    (Array.isArray(element.contributors) ? element.contributors : []).forEach(contributor => {
+      const person = String(contributor.person || '').trim().toLowerCase();
+      if (person !== 'tada' && person !== 'riku') return;
+      const normalizedContributor = {
+        person: person,
+        role: String(contributor.role || '役割不明').slice(0, 120),
+        roleScore: level_(contributor.roleScore, 3),
+        adoptionScore: clamp_(Math.round(Number(contributor.adoptionScore)), 0, 5, 3),
+        irreplaceabilityScore: level_(contributor.irreplaceabilityScore, 3),
+        evidence: String(contributor.evidence || '').slice(0, 1000),
+        confidence: confidence_(contributor.confidence)
+      };
+      const existing = contributorsByName[person];
+      if (!existing) contributorsByName[person] = normalizedContributor;
+      else {
+        existing.roleScore = Math.max(existing.roleScore, normalizedContributor.roleScore);
+        existing.adoptionScore = Math.max(existing.adoptionScore, normalizedContributor.adoptionScore);
+        existing.irreplaceabilityScore = Math.max(existing.irreplaceabilityScore, normalizedContributor.irreplaceabilityScore);
+        existing.confidence = Math.max(existing.confidence, normalizedContributor.confidence);
+        if (!existing.evidence && normalizedContributor.evidence) existing.evidence = normalizedContributor.evidence;
+      }
+    });
+    return {
+      id: String(element.id || `element-${elementIndex + 1}`).slice(0, 120),
+      name: String(element.name || `音楽要素 ${elementIndex + 1}`).slice(0, 200),
+      category: category,
+      identityScore: level_(element.identityScore, 3),
+      scopeScore: level_(element.scopeScore, 3),
+      evidence: String(element.evidence || '').slice(0, 1000),
+      confidence: confidence_(element.confidence),
+      contributors: Object.keys(contributorsByName).map(person => contributorsByName[person])
+    };
+  }).filter(element => element.contributors.length > 0);
+  if (!elements.length) throw new Error('音楽要素を抽出できませんでした。制作ログの詳細を追加してください。');
+
+  const categoriesInElements = [...new Set(elements.map(element => element.category))];
+  const suppliedWeights = Array.isArray(source.categoryWeights) ? source.categoryWeights : [];
+  const weightsByCategory = {};
+  suppliedWeights.forEach(item => {
+    const category = String(item.category || '');
+    if (categoriesInElements.indexOf(category) < 0) return;
+    weightsByCategory[category] = {
+      category: category,
+      weight: Math.max(0, Number(item.weight) || 0),
+      reason: String(item.reason || '').slice(0, 500),
+      confidence: confidence_(item.confidence)
+    };
+  });
+  categoriesInElements.forEach(category => {
+    if (!weightsByCategory[category]) weightsByCategory[category] = { category: category, weight: 1, reason: '制作ログに含まれる要素', confidence: 0.5 };
+  });
+  const categoryWeights = normalizeCategoryWeights_(Object.keys(weightsByCategory).map(category => weightsByCategory[category]));
+  const normalized = {
+    metricVersion: 3,
+    status: source.status === 'confirmed' ? 'confirmed' : 'draft',
+    summary: String(source.summary || '制作ログを5軸へ分解したベータ分析です。').slice(0, 1200),
+    categoryWeights: categoryWeights,
+    elements: elements,
+    model: String(model || source.model || ''),
+    updatedAt: String(source.updatedAt || new Date().toISOString()),
+    confirmedAt: String(source.confirmedAt || '')
+  };
+  return normalized;
+}
+
+function normalizeCategoryWeights_(weights) {
+  const clean = weights.map(item => ({ ...item, weight: Math.max(0, Number(item.weight) || 0) }));
+  let total = clean.reduce((sum, item) => sum + item.weight, 0);
+  if (!total) {
+    clean.forEach(item => { item.weight = 1; });
+    total = clean.length;
+  }
+  let allocated = 0;
+  clean.forEach((item, index) => {
+    item.weight = index === clean.length - 1 ? Math.max(0, 100 - allocated) : Math.round(item.weight / total * 1000) / 10;
+    allocated += item.weight;
+  });
+  return clean;
+}
+
+function calculateBetaScores_(analysis) {
+  const categoryWeights = Object.fromEntries((analysis.categoryWeights || []).map(item => [item.category, Number(item.weight) || 0]));
+  const eligibleElements = (analysis.elements || []).map(element => ({
+    ...element,
+    contributors: (element.contributors || []).filter(contributor => Number(contributor.adoptionScore) > 0)
+  })).filter(element => element.contributors.length > 0);
+  const categories = [...new Set(eligibleElements.map(element => element.category))];
+  let tadaPoints = 0;
+  let rikuPoints = 0;
+  const categoryBreakdown = [];
+  categories.forEach(category => {
+    const categoryElements = eligibleElements.filter(element => element.category === category);
+    const factors = categoryElements.map(element => 0.6 * level_(element.identityScore, 3) / 5 + 0.4 * level_(element.scopeScore, 3) / 5);
+    const factorTotal = factors.reduce((sum, factor) => sum + factor, 0) || 1;
+    let categoryTada = 0;
+    let categoryRiku = 0;
+    categoryElements.forEach((element, index) => {
+      const elementPoints = (categoryWeights[category] || 0) * factors[index] / factorTotal;
+      const contributorScores = element.contributors.map(contributor => ({
+        person: contributor.person,
+        score: 0.4 * level_(contributor.roleScore, 3) / 5 + 0.35 * clamp_(Number(contributor.adoptionScore), 0, 5, 3) / 5 + 0.25 * level_(contributor.irreplaceabilityScore, 3) / 5
+      }));
+      const contributorTotal = contributorScores.reduce((sum, item) => sum + item.score, 0) || 1;
+      contributorScores.forEach(item => {
+        const points = elementPoints * item.score / contributorTotal;
+        if (item.person === 'riku') categoryRiku += points;
+        else categoryTada += points;
+      });
+    });
+    tadaPoints += categoryTada;
+    rikuPoints += categoryRiku;
+    categoryBreakdown.push({ category: category, weight: categoryWeights[category] || 0, tadaPoints: categoryTada, rikuPoints: categoryRiku });
+  });
+  const total = tadaPoints + rikuPoints;
+  const tadaPercent = total > 0 ? tadaPoints / total * 100 : 50;
+  const reviewItems = [];
+  (analysis.categoryWeights || []).forEach(item => {
+    if (Number(item.confidence) < 0.7 || !String(item.reason || '').trim()) reviewItems.push(`カテゴリ: ${item.category}`);
+  });
+  (analysis.elements || []).forEach(element => {
+    if (Number(element.confidence) < 0.7 || !String(element.evidence || '').trim()) reviewItems.push(`要素: ${element.name}`);
+    (element.contributors || []).forEach(contributor => {
+      if (Number(contributor.confidence) < 0.7 || !String(contributor.evidence || '').trim()) reviewItems.push(`${element.name}: ${contributor.person}`);
+    });
+  });
+  return {
+    tadaPercent: tadaPercent,
+    rikuPercent: 100 - tadaPercent,
+    categoryBreakdown: categoryBreakdown,
+    needsReviewCount: reviewItems.length,
+    reviewItems: reviewItems.slice(0, 30)
+  };
+}
+
+function confidence_(value) {
+  let confidence = Number(value);
+  if (!Number.isFinite(confidence)) return 0.5;
+  if (confidence > 1) confidence /= 100;
+  return Math.max(0, Math.min(1, confidence));
 }
 function analyzeProject_(payload) {
   if (!payload || !Array.isArray(payload.logs) || !payload.logs.length) {

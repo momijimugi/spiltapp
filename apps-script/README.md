@@ -4,12 +4,14 @@
 
 GitHub Pagesには静的な `index.html` だけを配置します。スプレッドシートIDと接続キーはフロントのソースへ書かず、Apps ScriptのScript Propertiesに保存します。
 
-データは次の4シートに正規化して保存されます。
+データは次の6シートに分けて保存されます。
 
 - `Projects`: 案件情報、スプリット、タスク状態
 - `ProductionLogs`: ギター録音・楽器トラック・サンプルの明細
 - `DeletedProjects`: 消去した案件の全情報と消去日時
 - `DeletedProductionLogs`: 消去した案件に紐づく全制作ログ、案件名、消去日時
+- BetaAnalyses: 音楽的貢献度分析v3の下書き・確認済み結果
+- DeletedBetaAnalyses: 消去した案件のベータ分析履歴
 
 ## セットアップ
 
@@ -56,3 +58,9 @@ Gemini APIには対象モデルの無料枠がありますが、利用可能地�
 アーカイブ状態は Projects シート末尾の archived と archivedAt に保存されます。この更新を導入する場合も、Code.gs を反映して setupDatabase() を実行し、ウェブアプリを新しいバージョンとして再デプロイしてください。
 
 アーカイブ済み案件には小さな「消去」ボタンが表示されます。消去にはScript Propertiesと同じ `API_KEY` の再入力が必要です。消去前に案件は `DeletedProjects`、制作ログは `DeletedProductionLogs` へコピーされ、通常のシートから取り除かれます。削除履歴は同期時の復活防止にも使われるため、履歴シートの行は削除しないでください。
+
+## 音楽的貢献度分析v3 ベータ版
+
+案件画面の「音楽分析 β」から、現行分析とは別保存のベータ分析を開けます。AIはカテゴリ重要度と5軸評価を提案し、最終割合は固定式で計算されます。下書きと確認済み結果は `BetaAnalyses` に保存され、現行の `analysisJson` や最終合意値は変更されません。
+
+導入時は最新の `Code.gs` を反映し、`setupDatabase()` を再実行してベータ用の2シートを作成した後、既存ウェブアプリを新しいバージョンとして再デプロイしてください。案件を消去するとベータ分析は `DeletedBetaAnalyses` へ移されます。
