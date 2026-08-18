@@ -631,7 +631,8 @@ function analyzeCombined_(payload) {
   const logAnalysis = analyzeProject_(payload);
   const betaAnalysis = analyzeBeta_({ project: project, logs: payload.logs });
   const betaTadaPercent = clamp_(Number(betaAnalysis.calculation && betaAnalysis.calculation.tadaPercent), 0, 100, logAnalysis.recommendedA);
-  const recommendedA = (Number(logAnalysis.recommendedA) + betaTadaPercent) / 2;
+  // 物量・音楽的比重(v2)・5軸音楽分析(v3)を対等に3等分。5軸だけに寄りすぎないよう物量にも独立した重みを持たせる。
+  const recommendedA = (Number(logAnalysis.quantityA) + Number(logAnalysis.musicalA) + betaTadaPercent) / 3;
 
   if (project.id) {
     try {

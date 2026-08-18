@@ -163,6 +163,7 @@
 
     /* Utilities referenced in the markup that this pre-compiled Tailwind build doesn't include. */
     .mt-8 { margin-top: 2rem; }
+    .pb-52 { padding-bottom: 4rem; }
     .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
     .py-1\.5 { padding-top: .375rem; padding-bottom: .375rem; }
     .top-20 { top: 5rem; }
@@ -189,11 +190,12 @@
     .btn-danger:hover:not(:disabled) { background: rgba(192,43,74,.1); border-color: var(--danger); }
     .btn-danger-solid { background: var(--danger); color: #fff; border: 1px solid transparent; }
     .btn-danger-solid:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn.hidden { display: none; }
 
     .header-grid { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .75rem; }
-    .log-columns { display: grid; gap: 2rem; }
+    .log-columns { display: grid; gap: 1.5rem; }
     @media (min-width: 1024px) { .log-columns { grid-template-columns: minmax(0, .95fr) minmax(0, 1.15fr); align-items: start; } }
-    .log-list-scroll { max-height: 70vh; overflow-y: auto; }
+    .log-list-scroll { max-height: 52vh; overflow-y: auto; }
     .sync-pill { display: inline-flex; align-items: center; gap: .5rem; }
     .sync-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: var(--text-faint); }
     .sync-dot.is-disconnected, .sync-dot.is-error { background: var(--danger); }
@@ -285,6 +287,20 @@
           </div>
         </section>
 
+        <section class="glass mb-8 rounded-2xl border border-line p-5 sm:p-7" aria-label="総合スプリット結果">
+          <div class="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <p class="font-mono text-[9px] uppercase tracking-[.2em] text-slate-500">Final split</p>
+              <p id="active-points-top" class="mt-1 text-xs text-slate-500">Analysis is advisory / Final agreement</p>
+            </div>
+            <button type="button" class="copy-split-btn btn btn-secondary btn-sm focus:outline-none focus:ring-2 focus:ring-acid">Copy Split Data</button>
+          </div>
+          <div class="flex h-12 overflow-hidden rounded-xl bg-slate-800 font-mono text-sm font-bold" aria-label="スプリット比率グラフ">
+            <div id="bar-a-top" class="flex min-w-0 items-center justify-start bg-acid px-3 text-ink transition-[width] duration-300"><span id="bar-a-label-top">tada&nbsp; 50.0%</span></div>
+            <div id="bar-b-top" class="flex min-w-0 items-center justify-end bg-violet px-3 text-ink transition-[width] duration-300"><span id="bar-b-label-top">riku&nbsp; 50.0%</span></div>
+          </div>
+        </section>
+
         <section class="glass mb-8 overflow-hidden rounded-2xl border border-line" aria-labelledby="log-heading">
           <div class="border-b border-line px-5 py-5 sm:px-7">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -292,20 +308,18 @@
               <p class="max-w-md text-xs leading-5 text-slate-500">本数・貢献範囲・制作負荷（カロリー）を5段階で記録。どんな音を追加したかも残せます。</p>
             </div>
           </div>
-          <div class="p-5 sm:p-7">
+          <div class="p-4 sm:p-5">
           <div class="log-columns">
             <div>
-            <section class="rounded-xl border border-acid/20 bg-acid/[.035] p-5">
+            <section class="rounded-xl border border-acid/20 bg-acid/[.035] p-4">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div><p class="font-mono text-[10px] uppercase tracking-[.16em] text-acid">AI log parser</p><h3 class="mt-1 text-base font-bold">文章からログを作成</h3><p class="mt-2 text-xs leading-5 text-slate-500">tada / riku、作業内容、本数、貢献範囲、制作負荷、曲中での役割を自由に記述してください。</p></div>
                 <button id="parse-narrative-btn" type="button" class="btn btn-primary btn-sm shrink-0">AIで分解</button>
               </div>
-              <textarea id="log-narrative" rows="5" class="mt-4 w-full resize-y rounded-lg border border-line bg-black/30 px-4 py-3 text-sm leading-6 outline-none placeholder:text-slate-700 focus:border-acid/50" placeholder="例：tadaがサビのメインメロディーと曲構成を作成。rikuはStratのアルペジオを2本、複数セクションに追加。演奏と音作りは高負荷だった。"></textarea>
-              <p id="parse-status" class="mt-2 min-h-5 text-xs text-slate-600" aria-live="polite"></p>
-              <div id="log-drafts" class="mt-5 hidden border-t border-line pt-5">
-                <div class="flex items-center justify-between gap-3"><p class="text-sm font-bold">AIが分解したログ候補</p><span class="font-mono text-[9px] text-amber-400">登録前に内容を確認してください</span></div>
-                <div id="log-draft-list" class="mt-3 space-y-3"></div>
-                <div class="mt-4 flex justify-end"><button id="register-drafts-btn" type="button" class="btn btn-primary btn-md">選択した候補を登録</button></div>
+              <textarea id="log-narrative" rows="3" class="mt-4 w-full resize-y rounded-lg border border-line bg-black/30 px-4 py-3 text-sm leading-6 outline-none placeholder:text-slate-700 focus:border-acid/50" placeholder="例：tadaがサビのメインメロディーと曲構成を作成。rikuはStratのアルペジオを2本、複数セクションに追加。演奏と音作りは高負荷だった。"></textarea>
+              <div class="mt-2 flex items-center justify-between gap-3">
+                <p id="parse-status" class="min-w-0 flex-1 min-h-5 text-xs text-slate-600" aria-live="polite"></p>
+                <button id="reopen-drafts-btn" type="button" class="btn btn-ghost btn-sm hidden shrink-0">下書きを確認</button>
               </div>
             </section>
 
@@ -344,9 +358,9 @@
               <div class="grid gap-4 md:grid-cols-3">
                 <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">QUANTITY</p><h3 class="mt-1 text-sm font-bold">物量</h3></div><p id="quantity-score" class="font-mono text-lg font-bold text-acid">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="quantity-bar-a" class="bg-acid transition-all"></div><div id="quantity-bar-b" class="bg-violet transition-all"></div></div><p id="quantity-detail" class="mt-4 text-xs leading-6 text-slate-500"></p></div>
                 <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">MUSICAL WEIGHT</p><h3 class="mt-1 text-sm font-bold">音楽的比重</h3></div><p id="musical-score" class="font-mono text-lg font-bold text-violet-300">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="musical-bar-a" class="bg-acid transition-all"></div><div id="musical-bar-b" class="bg-violet transition-all"></div></div><p id="musical-detail" class="mt-4 text-xs leading-6 text-slate-500"></p></div>
-                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">5-AXIS MUSICAL</p><h3 class="mt-1 text-sm font-bold">5軸音楽分析</h3></div><p id="beta-score" class="font-mono text-lg font-bold text-amber-400">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="beta-bar-a" class="bg-acid transition-all"></div><div id="beta-bar-b" class="bg-violet transition-all"></div></div><p id="beta-detail" class="mt-4 text-xs leading-6 text-slate-500">Google AIで分析すると、要素ごとの5軸評価から算出されます。</p></div>
+                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">5-AXIS MUSICAL</p><h3 class="mt-1 text-sm font-bold">5軸音楽分析</h3></div><p id="beta-score" class="font-mono text-lg font-bold text-amber-400">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="beta-bar-a" class="bg-acid transition-all"></div><div id="beta-bar-b" class="bg-violet transition-all"></div></div><p class="mt-4 font-mono text-[9px] uppercase tracking-[.14em] text-slate-600">AIコメント</p><p id="beta-detail" class="mt-1 text-xs leading-6 text-slate-400">Google AIで分析すると、要素ごとの5軸評価から算出されます。</p></div>
               </div>
-              <div class="mt-4 rounded-xl border border-acid/20 bg-acid/[.045] p-5 sm:p-6"><div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p class="font-mono text-[10px] text-acid">ANALYSIS RECOMMENDATION（ログ分析 × 5軸音楽分析の平均）</p><p id="analysis-recommendation" class="mt-2 text-3xl font-extrabold">tada 50% / riku 50%</p></div><button id="apply-analysis-btn" type="button" class="rounded-lg border border-acid/30 px-4 py-3 text-xs font-bold text-acid transition hover:bg-acid hover:text-ink">話し合いの初期値にする</button></div><p id="analysis-summary" class="mt-4 max-w-3xl text-sm leading-7 text-slate-400"></p><ul id="analysis-evidence" class="mt-3 space-y-1 text-xs leading-6 text-slate-500"></ul></div>
+              <div class="mt-4 rounded-xl border border-acid/20 bg-acid/[.045] p-5 sm:p-6"><div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p class="font-mono text-[10px] text-acid">ANALYSIS RECOMMENDATION（物量・音楽的比重・5軸音楽分析の平均）</p><p id="analysis-recommendation" class="mt-2 text-3xl font-extrabold">tada 50% / riku 50%</p></div><button id="apply-analysis-btn" type="button" class="rounded-lg border border-acid/30 px-4 py-3 text-xs font-bold text-acid transition hover:bg-acid hover:text-ink">話し合いの初期値にする</button></div><p id="analysis-summary" class="mt-4 max-w-3xl text-sm leading-7 text-slate-400"></p><ul id="analysis-evidence" class="mt-3 space-y-1 text-xs leading-6 text-slate-500"></ul></div>
               <p id="analysis-source" class="mt-3 text-right font-mono text-[9px] text-slate-600"></p>
             </div>
           </div>
@@ -357,26 +371,25 @@
           <div class="p-5 sm:p-7"><div class="mb-4 flex justify-between font-mono text-sm font-bold"><span class="text-acid">tada <span id="agreement-a">50%</span></span><span class="text-violet-300"><span id="agreement-b">50%</span> riku</span></div><input id="final-slider" type="range" min="0" max="100" value="50" step="0.5" class="range w-full" aria-label="最終合意のtadaの割合"><div class="mt-4 flex items-center justify-between text-[10px] text-slate-600"><span>tada</span><span>話し合いで調整</span><span>riku</span></div></div>
         </section>
 
+        <section class="glass mt-8 rounded-2xl border border-line p-5 sm:p-7" aria-label="総合スプリット結果">
+          <div class="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <p class="font-mono text-[9px] uppercase tracking-[.2em] text-slate-500">Final split</p>
+              <p id="active-points-bottom" class="mt-1 text-xs text-slate-500">Analysis is advisory / Final agreement</p>
+            </div>
+            <button type="button" class="copy-split-btn btn btn-secondary btn-sm focus:outline-none focus:ring-2 focus:ring-acid">Copy Split Data</button>
+          </div>
+          <div class="flex h-12 overflow-hidden rounded-xl bg-slate-800 font-mono text-sm font-bold" aria-label="スプリット比率グラフ">
+            <div id="bar-a-bottom" class="flex min-w-0 items-center justify-start bg-acid px-3 text-ink transition-[width] duration-300"><span id="bar-a-label-bottom">tada&nbsp; 50.0%</span></div>
+            <div id="bar-b-bottom" class="flex min-w-0 items-center justify-end bg-violet px-3 text-ink transition-[width] duration-300"><span id="bar-b-label-bottom">riku&nbsp; 50.0%</span></div>
+          </div>
+        </section>
+
         <div id="task-list" class="hidden" aria-hidden="true"></div>
         <input id="song-title" type="hidden">
       </div>
     </main>
 
-    <aside id="result-dock" class="fixed inset-x-0 bottom-0 z-30 hidden border-t border-white/10 bg-[#0c0f15]/95 shadow-[0_-20px_60px_rgba(0,0,0,.4)] backdrop-blur-xl" aria-label="総合スプリット結果">
-      <div class="mx-auto max-w-6xl px-5 py-5 sm:px-8">
-        <div class="mb-3 flex items-end justify-between gap-4">
-          <div>
-            <p class="font-mono text-[9px] uppercase tracking-[.2em] text-slate-500">Final split</p>
-            <p id="active-points" class="mt-1 text-xs text-slate-500">Analysis is advisory / Final agreement</p>
-          </div>
-          <button id="copy-btn" type="button" class="btn btn-secondary btn-sm focus:outline-none focus:ring-2 focus:ring-acid">Copy Split Data</button>
-        </div>
-        <div class="flex h-12 overflow-hidden rounded-xl bg-slate-800 font-mono text-sm font-bold" aria-label="スプリット比率グラフ">
-          <div id="bar-a" class="flex min-w-0 items-center justify-start bg-acid px-3 text-ink transition-[width] duration-300"><span id="bar-a-label">tada&nbsp; 50.0%</span></div>
-          <div id="bar-b" class="flex min-w-0 items-center justify-end bg-violet px-3 text-ink transition-[width] duration-300"><span id="bar-b-label">riku&nbsp; 50.0%</span></div>
-        </div>
-      </div>
-    </aside>
 
     <div id="api-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="api-modal-title">
       <form id="api-form" class="w-full max-w-lg rounded-2xl border border-line bg-panel p-6 shadow-2xl sm:p-7">
@@ -416,6 +429,17 @@
           <label class="sm:col-span-2"><span class="mb-2 block font-mono text-[10px] uppercase tracking-[.14em] text-slate-600">Deadline</span><input id="project-deadline" type="date" class="project-field w-full rounded-lg border border-line bg-black/20 px-4 py-3 text-sm outline-none focus:border-acid/50"></label>
         </div>
         <div class="mt-6 flex justify-end"><button id="project-info-done" type="button" class="btn btn-primary btn-sm">完了</button></div>
+      </div>
+    </div>
+
+    <div id="log-drafts-modal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/80 p-5 py-10 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="log-drafts-modal-title">
+      <div class="w-full max-w-3xl rounded-2xl border border-line bg-panel p-6 shadow-2xl sm:p-7">
+        <div class="flex items-center justify-between gap-3">
+          <div><p class="font-mono text-[10px] uppercase tracking-[.18em] text-acid">AI draft logs</p><h2 id="log-drafts-modal-title" class="mt-1 text-lg font-bold">AIが分解したログ候補</h2><p class="mt-2 text-xs leading-5 text-slate-500">登録前に内容を確認・編集してください。</p></div>
+          <button id="log-drafts-close" type="button" class="btn btn-ghost btn-icon" aria-label="閉じる">✕</button>
+        </div>
+        <div id="log-draft-list" class="mt-5 space-y-3"></div>
+        <div class="mt-5 flex justify-end gap-2"><button id="log-drafts-cancel" type="button" class="btn btn-ghost btn-sm">閉じる</button><button id="register-drafts-btn" type="button" class="btn btn-primary btn-md">選択した候補を登録</button></div>
       </div>
     </div>
 
@@ -749,7 +773,6 @@
       activeProjectId = null;
       document.getElementById('dashboard-view').classList.remove('hidden');
       document.getElementById('project-view').classList.add('hidden');
-      document.getElementById('result-dock').classList.add('hidden');
       renderDashboard();
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if (!suppressHistoryPush) history.pushState({ view: 'dashboard' }, '', '#dashboard');
@@ -763,7 +786,6 @@
       resetLogForm();
       document.getElementById('dashboard-view').classList.add('hidden');
       document.getElementById('project-view').classList.remove('hidden');
-      document.getElementById('result-dock').classList.remove('hidden');
       document.getElementById('project-title').value = project.title || '';
       document.getElementById('project-status').value = project.status || '制作中';
       document.getElementById('project-bpm').value = project.bpm || '';
@@ -1035,7 +1057,18 @@
       container.querySelectorAll('.draft-row').forEach((row, index) => {
         row.querySelector('.draft-type').value = parsedLogDrafts[index].type;
       });
-      document.getElementById('log-drafts').classList.toggle('hidden', parsedLogDrafts.length === 0);
+      document.getElementById('reopen-drafts-btn').classList.toggle('hidden', parsedLogDrafts.length === 0);
+    }
+
+    function openLogDraftsModal() {
+      const modal = document.getElementById('log-drafts-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+    function closeLogDraftsModal() {
+      const modal = document.getElementById('log-drafts-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
     }
 
     async function parseNarrativeWithGoogle() {
@@ -1043,7 +1076,7 @@
       const status = document.getElementById('parse-status');
       if (!text) {
         status.textContent = '制作内容を文章で入力してください。';
-        status.className = 'mt-2 min-h-5 text-xs text-amber-400';
+        status.className = 'min-h-5 text-xs text-amber-400';
         return;
       }
       const connection = await requestApiConnection();
@@ -1052,7 +1085,7 @@
       button.disabled = true;
       button.textContent = '分解中…';
       status.textContent = '文章から制作ログを抽出しています…';
-      status.className = 'mt-2 min-h-5 text-xs text-slate-500';
+      status.className = 'min-h-5 text-xs text-slate-500';
       try {
         const project = getActiveProject();
         const body = new URLSearchParams({ action: 'parseLogs', apiKey: connection.apiKey, payload: JSON.stringify({ text, project: { title: project?.title || '', duration: project?.duration || 180 } }) });
@@ -1070,12 +1103,14 @@
         }));
         renderLogDrafts();
         status.textContent = `${parsedLogDrafts.length}件のログ候補に分解しました。内容を確認してください。`;
-        status.className = 'mt-2 min-h-5 text-xs text-acid';
+        status.className = 'min-h-5 text-xs text-acid';
+        if (parsedLogDrafts.length) openLogDraftsModal();
       } catch (error) {
         parsedLogDrafts = [];
         renderLogDrafts();
+        closeLogDraftsModal();
         status.textContent = `AI分解エラー: ${error.message}`;
-        status.className = 'mt-2 min-h-5 text-xs text-rose-400';
+        status.className = 'min-h-5 text-xs text-rose-400';
       } finally {
         button.disabled = false;
         button.textContent = 'AIで分解';
@@ -1346,16 +1381,17 @@
     }
 
     function renderSplit(a, b, totalPoints) {
-      const barA = document.getElementById('bar-a');
-      const barB = document.getElementById('bar-b');
-      barA.style.width = `${a}%`;
-      barB.style.width = `${b}%`;
-      document.getElementById('bar-a-label').innerHTML = a >= 12 ? `tada&nbsp; ${a.toFixed(1)}%` : a >= 5 ? `${a.toFixed(0)}%` : '';
-      document.getElementById('bar-b-label').innerHTML = b >= 12 ? `riku&nbsp; ${b.toFixed(1)}%` : b >= 5 ? `${b.toFixed(0)}%` : '';
       const analysis = getActiveProject()?.analysis;
-      document.getElementById('active-points').textContent = analysis
+      const pointsText = analysis
         ? `分析推奨 tada ${Number(analysis.recommendedA).toFixed(1)}% / 最終合意を優先`
         : 'ログ分析は参考値 / 最終合意を優先';
+      ['top', 'bottom'].forEach(suffix => {
+        document.getElementById(`bar-a-${suffix}`).style.width = `${a}%`;
+        document.getElementById(`bar-b-${suffix}`).style.width = `${b}%`;
+        document.getElementById(`bar-a-label-${suffix}`).innerHTML = a >= 12 ? `tada&nbsp; ${a.toFixed(1)}%` : a >= 5 ? `${a.toFixed(0)}%` : '';
+        document.getElementById(`bar-b-label-${suffix}`).innerHTML = b >= 12 ? `riku&nbsp; ${b.toFixed(1)}%` : b >= 5 ? `${b.toFixed(0)}%` : '';
+        document.getElementById(`active-points-${suffix}`).textContent = pointsText;
+      });
     }
 
     function syncTaskRow(row) {
@@ -1413,7 +1449,7 @@
       ].filter(line => line !== '').join('\n');
     }
 
-    document.getElementById('copy-btn').addEventListener('click', async () => {
+    document.querySelectorAll('.copy-split-btn').forEach(btn => btn.addEventListener('click', async () => {
       const text = buildCopyText();
       try {
         await navigator.clipboard.writeText(text);
@@ -1429,7 +1465,7 @@
         area.remove();
         showToast('スプリットデータをコピーしました');
       }
-    });
+    }));
 
     let toastTimer;
     function showToast(message) {
@@ -1587,6 +1623,12 @@
     document.querySelectorAll('.project-field').forEach(field => field.addEventListener('input', scheduleProjectSave));
 
     document.getElementById('parse-narrative-btn').addEventListener('click', parseNarrativeWithGoogle);
+    document.getElementById('reopen-drafts-btn').addEventListener('click', openLogDraftsModal);
+    document.getElementById('log-drafts-close').addEventListener('click', closeLogDraftsModal);
+    document.getElementById('log-drafts-cancel').addEventListener('click', closeLogDraftsModal);
+    document.getElementById('log-drafts-modal').addEventListener('click', event => {
+      if (event.target.id === 'log-drafts-modal') closeLogDraftsModal();
+    });
     document.getElementById('register-drafts-btn').addEventListener('click', () => {
       const project = getActiveProject();
       if (!project) return;
@@ -1615,6 +1657,7 @@
       document.getElementById('log-narrative').value = '';
       document.getElementById('parse-status').textContent = '';
       renderLogDrafts();
+      closeLogDraftsModal();
       renderProductionLogs();
       scheduleProjectSave();
       showToast(`${selectedLogs.length}件の制作ログを登録しました`);
