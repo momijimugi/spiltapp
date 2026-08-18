@@ -425,7 +425,8 @@ function analyzeBeta_(payload) {
     'adoptionScoreは最終版への残存度を0〜5で評価し、完全に不採用なら0にしてください。irreplaceabilityScoreはその貢献を抜いた場合に曲の印象・成立が変わる程度を1〜5で評価してください。',
     '各点数には制作ログに明記された事実だけを根拠としてevidenceへ日本語で記載し、推測しないでください。confidenceは0〜1です。根拠不足は中立値3（adoptionのみ3）としconfidenceを0.69以下にしてください。',
     'AIは最終割合を決めません。割合・人物評価・勝敗に関する文章を出さないでください。',
-    'JSONのみを返してください。形式: {"summary":"分析の短い説明","categoryWeights":[{"category":"melody","weight":25,"reason":"理由","confidence":0.8}],"elements":[{"id":"element-1","name":"サビの主旋律","category":"melody","identityScore":5,"scopeScore":3,"evidence":"根拠","confidence":0.9,"contributors":[{"person":"tada","role":"核となる原案","roleScore":5,"adoptionScore":5,"irreplaceabilityScore":5,"evidence":"根拠","confidence":0.9}]}]}',
+    'summaryには、抽出したmusical elementの名前とカテゴリ、各担当者がどの要素にどう関わったか(原案・発展・整理など)、なぜそのcategoryWeightsになったのかを、具体例を挙げながら4〜6文程度で説明してください。「メロディーの比重が高い」のような抽象的な一文だけで終えないでください。',
+    'JSONのみを返してください。形式: {"summary":"分析の詳しい説明","categoryWeights":[{"category":"melody","weight":25,"reason":"理由","confidence":0.8}],"elements":[{"id":"element-1","name":"サビの主旋律","category":"melody","identityScore":5,"scopeScore":3,"evidence":"根拠","confidence":0.9,"contributors":[{"person":"tada","role":"核となる原案","roleScore":5,"adoptionScore":5,"irreplaceabilityScore":5,"evidence":"根拠","confidence":0.9}]}]}',
     `案件: ${JSON.stringify(projectSummary)}`,
     `制作ログ: ${JSON.stringify(namedLogs)}`
   ].join('\n');
@@ -631,8 +632,8 @@ function analyzeCombined_(payload) {
   const logAnalysis = analyzeProject_(payload);
   const betaAnalysis = analyzeBeta_({ project: project, logs: payload.logs });
   const betaTadaPercent = clamp_(Number(betaAnalysis.calculation && betaAnalysis.calculation.tadaPercent), 0, 100, logAnalysis.recommendedA);
-  // 物量・音楽的比重(v2)・5軸音楽分析(v3)を対等に3等分。5軸だけに寄りすぎないよう物量にも独立した重みを持たせる。
-  const recommendedA = (Number(logAnalysis.quantityA) + Number(logAnalysis.musicalA) + betaTadaPercent) / 3;
+  // 5軸音楽分析(v3)は最終レコメンドの50%に抑え、残り半分を物量・音楽的比重(v2)に25%ずつ配分する。
+  const recommendedA = Number(logAnalysis.quantityA) * 0.25 + Number(logAnalysis.musicalA) * 0.25 + betaTadaPercent * 0.5;
 
   if (project.id) {
     try {
@@ -682,7 +683,9 @@ function analyzeProject_(payload) {
     'メインメロディー、曲構成、固有モチーフは高い比重。コード、ビート、ベース、ミックスは曲への影響範囲で評価。scopeは影響範囲、effortは制作負荷として扱い、単純なトラック追加やサンプル配置は物量が多くても音楽的比重を過大評価しないでください。',
     '担当者はtadaとrikuです。回答文では必ずこの名前を使い、記号や代替名で表現しないでください。',
     'tadaの音楽的比重を0〜100のtadaMusicalPercentで返してください。証拠はログに書かれた事実だけを使い、推測しないでください。',
-    '物量の割合はシステムが本数・貢献範囲・制作負荷から算出済みです。割合を変更せず、quantityCommentには両者の物量差とその主な理由を、具体的な名前・本数・範囲・負荷に触れて簡潔に説明してください。',
+    '物量の割合はシステムが本数・貢献範囲・制作負荷から算出済みです。割合を変更せず、quantityCommentには両者の物量差とその主な理由を、ログに出てくる具体的な作業名・本数・貢献範囲(1〜5)・制作負荷(1〜5)の値を複数挙げながら3〜5文程度で具体的に説明してください。抽象的な言い回しは避け、どのログがどれだけ物量に効いたかが分かるようにしてください。',
+    'musicalDetailには、tadaとrikuそれぞれのどの作業が完成曲の音楽的な骨格(メロディー・構成・モチーフなど)にどの程度影響したかを、作業名とカテゴリに触れながら3〜5文程度で具体的に説明してください。',
+    'summaryには、物量と音楽的比重の両方を踏まえた総合的な所見を3〜4文程度でまとめてください。',
     'JSONのみを返してください。形式: {"tadaMusicalPercent":number,"quantityComment":string,"summary":string,"evidence":[string],"musicalDetail":string}',
     `案件: ${JSON.stringify(payload.project || {})}`,
     `物量集計: ${JSON.stringify({ quantityTadaPercent: baseline.quantityA, detail: baseline.quantityDetail, evidence: baseline.evidence })}`,
