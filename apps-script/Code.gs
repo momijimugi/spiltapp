@@ -343,7 +343,7 @@ function parseNarrative_(payload) {
     '担当者は必ず名前で扱い、tadaまたはrikuを返してください。不明なら空文字にしてuncertainFieldsへ「担当」を追加してください。記号や代替名で表現しないでください。',
     'typeは次から選択: melody, structure, motif, harmony, beat, bass, guitar, instrument, sound, sample, mix, delivery。',
     'countは本数。不明なら1。scopeは貢献範囲、effortは制作負荷（カロリー）を次の5段階から選んでください。',
-    'scope: 1=ワンポイント（単発の差し込み・装飾）、2=1セクション（Aメロ・サビなど一部の構成）、3=複数セクション（2つ以上の構成にまたがる範囲）、4=曲全体（一曲を通して存在する要素）、5=中核・継続関与（曲の骨格として作業全体を主導）。',
+    'scope: 1=ワンポイント（単発の差し込み・装飾）、2=1セクション（Aメロ・サビなど一部の構成）、3=複数セクション（2〜3程度の構成にまたがる範囲）、4=曲の大部分（サビ以外にも複数箇所で使われる、曲の骨格に近い要素）、5=曲全体（一曲を通して存在する要素）。',
     'effort: 1=軽作業、2=やや工夫が必要、3=標準的な負荷、4=高負荷、5=非常に高負荷。難易度・専門性・試行錯誤・所要労力を総合してください。',
     '原文から判断できないscopeまたはeffortは中立値3にし、uncertainFieldsへ「貢献範囲」または「制作負荷」を追加してください。',
     'nameは短い作業名。detailsには曲中での役割、使用機材、加工、採用箇所など、原文にある事実を残してください。',
@@ -632,8 +632,8 @@ function analyzeCombined_(payload) {
   const logAnalysis = analyzeProject_(payload);
   const betaAnalysis = analyzeBeta_({ project: project, logs: payload.logs });
   const betaTadaPercent = clamp_(Number(betaAnalysis.calculation && betaAnalysis.calculation.tadaPercent), 0, 100, logAnalysis.recommendedA);
-  // 5軸音楽分析(v3)は最終レコメンドの50%に抑え、残り半分を物量・音楽的比重(v2)に25%ずつ配分する。
-  const recommendedA = Number(logAnalysis.quantityA) * 0.25 + Number(logAnalysis.musicalA) * 0.25 + betaTadaPercent * 0.5;
+  // 5軸音楽分析(v3)は最終レコメンドの15%に抑え、残り85%を物量・音楽的比重(v2)に均等配分する。
+  const recommendedA = Number(logAnalysis.quantityA) * 0.425 + Number(logAnalysis.musicalA) * 0.425 + betaTadaPercent * 0.15;
 
   if (project.id) {
     try {

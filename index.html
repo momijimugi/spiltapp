@@ -195,7 +195,7 @@
     .header-grid { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .75rem; }
     .log-columns { display: grid; gap: 1.5rem; }
     @media (min-width: 1024px) { .log-columns { grid-template-columns: minmax(0, .95fr) minmax(0, 1.15fr); } }
-    .log-list-scroll { max-height: 52vh; overflow-y: auto; }
+    .log-list-scroll { flex: 1 1 auto; min-height: 0; max-height: 52vh; overflow-y: auto; }
     .analysis-spinner { width: 56px; height: 56px; border-radius: 999px; border: 5px solid var(--line-strong); border-top-color: var(--accent-text); animation: analysis-spin .9s linear infinite; }
     @keyframes analysis-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .analysis-spinner { animation-duration: 2.4s; } }
@@ -334,7 +334,7 @@
               </div>
               <label><span class="mb-2 block text-[10px] text-slate-500">貢献カテゴリ</span><select id="log-type" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="melody">メインメロディー</option><option value="structure">構成・展開</option><option value="motif">モチーフ／フレーズ</option><option value="harmony">コード／ハーモニー</option><option value="beat">ビート</option><option value="bass">ベース</option><option value="guitar">ギター録音</option><option value="instrument">楽器トラック</option><option value="sound">サウンドデザイン</option><option value="sample">サンプル／ループ</option><option value="mix">ミックス</option><option value="delivery">編集・納品</option></select></label>
               <label><span class="mb-2 block text-[10px] text-slate-500">内容・使用機材</span><input id="log-name" required class="w-full rounded-lg border border-line bg-black/20 px-3 py-3 text-sm" placeholder="例：サビの主旋律 / Stratのアルペジオ"></label>
-              <label><span class="mb-2 block text-[10px] text-slate-500">貢献範囲</span><select id="log-scope" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="1">1 · ワンポイント（単発）</option><option value="2">2 · 1セクション（Aメロ・サビ等）</option><option value="3" selected>3 · 複数セクション（2つ前後）</option><option value="4">4 · 曲全体（全編）</option><option value="5">5 · 全体を通した継続作業</option></select></label>
+              <label><span class="mb-2 block text-[10px] text-slate-500">貢献範囲</span><select id="log-scope" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="1">1 · ワンポイント（単発）</option><option value="2">2 · 1セクション（Aメロ・サビ等）</option><option value="3" selected>3 · 複数セクション（2〜3程度）</option><option value="4">4 · 曲の大部分（複数箇所で使用）</option><option value="5">5 · 曲全体（全編）</option></select></label>
               <label><span class="mb-2 block text-[10px] text-slate-500">制作負荷（カロリー）</span><select id="log-effort" class="w-full rounded-lg border border-line bg-[#0d1016] px-3 py-3 text-sm"><option value="1">1 · 軽作業（短時間・定型）</option><option value="2">2 · やや軽い（少し工夫）</option><option value="3" selected>3 · 標準（通常の制作）</option><option value="4">4 · 高負荷（試行錯誤が多い）</option><option value="5">5 · 非常に高負荷（高度・継続的）</option></select></label>
               <label><span class="mb-2 block text-[10px] text-slate-500">曲中での役割・採用箇所・加工内容</span><input id="log-details" required class="w-full rounded-lg border border-line bg-black/20 px-3 py-3 text-sm" placeholder="例：曲を特定する中心モチーフ。イントロとサビで採用。0:00〜0:18 / 0:52〜1:24"></label>
               <div class="mt-1 flex gap-2"><button id="cancel-log-edit" type="button" class="btn btn-ghost btn-md hidden">キャンセル</button><button id="log-submit-btn" class="btn btn-primary btn-md flex-1">追加</button></div>
@@ -352,7 +352,7 @@
         </section>
         <section class="glass mb-8 overflow-hidden rounded-2xl border border-line shadow-glow" aria-labelledby="analysis-heading">
           <div class="flex flex-col gap-4 border-b border-line px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-            <div><p class="font-mono text-[10px] uppercase tracking-[.18em] text-acid">Log intelligence</p><h2 id="analysis-heading" class="mt-1 text-lg font-bold">制作ログ分析</h2><p class="mt-2 text-xs text-slate-500">物量・音楽的比重・5軸音楽分析を実行し、25%・25%・50%の加重平均を最終レコメンドにします。</p></div>
+            <div><p class="font-mono text-[10px] uppercase tracking-[.18em] text-acid">Log intelligence</p><h2 id="analysis-heading" class="mt-1 text-lg font-bold">制作ログ分析</h2><p class="mt-2 text-xs text-slate-500">物量・音楽的比重・5軸音楽分析を実行し、42.5%・42.5%・15%の加重平均を最終レコメンドにします。</p></div>
             <button id="analyze-logs-btn" type="button" class="btn btn-primary btn-md">Google AIで分析</button>
           </div>
           <div class="p-5 sm:p-7">
@@ -364,11 +364,11 @@
             <div id="analysis-empty" class="rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-600">制作ログを追加すると分析できます。</div>
             <div id="analysis-result" class="hidden">
               <div class="grid gap-4 md:grid-cols-3">
-                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">QUANTITY / 25%</p><h3 class="mt-1 text-sm font-bold">物量</h3></div><p id="quantity-score" class="font-mono text-lg font-bold text-acid">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="quantity-bar-a" class="bg-acid transition-all"></div><div id="quantity-bar-b" class="bg-violet transition-all"></div></div><p class="mt-4 text-[11px] leading-5 text-slate-600">本数・貢献範囲(1〜5)・制作負荷=カロリー(1〜5)を同じ比重で集計した客観的な指標です。AIの判定は加わりません。</p><p class="mt-3 font-mono text-[9px] uppercase tracking-[.14em] text-slate-600">AIコメント</p><p id="quantity-detail" class="mt-1 text-xs leading-6 text-slate-400"></p></div>
-                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">MUSICAL WEIGHT / 25%</p><h3 class="mt-1 text-sm font-bold">音楽的比重</h3></div><p id="musical-score" class="font-mono text-lg font-bold text-violet-300">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="musical-bar-a" class="bg-acid transition-all"></div><div id="musical-bar-b" class="bg-violet transition-all"></div></div><p class="mt-4 text-[11px] leading-5 text-slate-600">メインメロディー・構成・モチーフなど曲の同一性に関わるカテゴリを重視し、完成曲への音楽的な中心性をGemini AIが判定します。</p><p class="mt-3 font-mono text-[9px] uppercase tracking-[.14em] text-slate-600">AIコメント</p><p id="musical-detail" class="mt-1 text-xs leading-6 text-slate-400"></p></div>
-                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">5-AXIS MUSICAL / 50%</p><h3 class="mt-1 text-sm font-bold">5軸音楽分析</h3></div><p id="beta-score" class="font-mono text-lg font-bold text-amber-400">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="beta-bar-a" class="bg-acid transition-all"></div><div id="beta-bar-b" class="bg-violet transition-all"></div></div><p class="mt-4 text-[11px] leading-5 text-slate-600">曲を構成する音楽要素ごとに、同一性への近さ・影響範囲・役割・最終採用度・代替不可能性の5軸でGemini AIが個別評価し、積み上げて算出します。最終レコメンドではこの結果を50%の重みで反映します。</p><p class="mt-3 font-mono text-[9px] uppercase tracking-[.14em] text-slate-600">AIコメント</p><p id="beta-detail" class="mt-1 text-xs leading-6 text-slate-400">Google AIで分析すると、要素ごとの5軸評価から算出されます。</p></div>
+                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">QUANTITY / 42.5%</p><h3 class="mt-1 text-sm font-bold">物量</h3></div><p id="quantity-score" class="font-mono text-lg font-bold text-acid">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="quantity-bar-a" class="bg-acid transition-all"></div><div id="quantity-bar-b" class="bg-violet transition-all"></div></div><p class="mt-4 text-[11px] leading-5 text-slate-600">本数・貢献範囲(1〜5)・制作負荷=カロリー(1〜5)を同じ比重で集計した客観的な指標です。AIの判定は加わりません。</p><p class="mt-3 font-mono text-[9px] uppercase tracking-[.14em] text-slate-600">AIコメント</p><p id="quantity-detail" class="mt-1 text-xs leading-6 text-slate-400"></p></div>
+                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">MUSICAL WEIGHT / 42.5%</p><h3 class="mt-1 text-sm font-bold">音楽的比重</h3></div><p id="musical-score" class="font-mono text-lg font-bold text-violet-300">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="musical-bar-a" class="bg-acid transition-all"></div><div id="musical-bar-b" class="bg-violet transition-all"></div></div><p class="mt-4 text-[11px] leading-5 text-slate-600">メインメロディー・構成・モチーフなど曲の同一性に関わるカテゴリを重視し、完成曲への音楽的な中心性をGemini AIが判定します。</p><p class="mt-3 font-mono text-[9px] uppercase tracking-[.14em] text-slate-600">AIコメント</p><p id="musical-detail" class="mt-1 text-xs leading-6 text-slate-400"></p></div>
+                <div class="rounded-xl border border-line bg-black/20 p-5"><div class="flex items-start justify-between"><div><p class="font-mono text-[10px] text-slate-500">5-AXIS MUSICAL / 15%</p><h3 class="mt-1 text-sm font-bold">5軸音楽分析</h3></div><p id="beta-score" class="font-mono text-lg font-bold text-amber-400">tada 50 / riku 50</p></div><div class="mt-5 flex h-2 overflow-hidden rounded-full bg-slate-800"><div id="beta-bar-a" class="bg-acid transition-all"></div><div id="beta-bar-b" class="bg-violet transition-all"></div></div><p class="mt-4 text-[11px] leading-5 text-slate-600">曲を構成する音楽要素ごとに、同一性への近さ・影響範囲・役割・最終採用度・代替不可能性の5軸でGemini AIが個別評価し、積み上げて算出します。最終レコメンドではこの結果を15%の重みで反映します。</p><div class="mt-3 flex gap-2"><button id="axis-explainer-btn" type="button" class="btn btn-ghost btn-sm">説明</button><button id="beta-detail-btn" type="button" class="btn btn-ghost btn-sm" disabled>評価詳細</button></div><p class="mt-3 font-mono text-[9px] uppercase tracking-[.14em] text-slate-600">AIコメント</p><p id="beta-detail" class="mt-1 text-xs leading-6 text-slate-400">Google AIで分析すると、要素ごとの5軸評価から算出されます。</p></div>
               </div>
-              <div class="mt-4 rounded-xl border border-acid/20 bg-acid/[.045] p-5 sm:p-6"><div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p class="font-mono text-[10px] text-acid">ANALYSIS RECOMMENDATION（物量25% + 音楽的比重25% + 5軸音楽分析50%の加重平均）</p><p id="analysis-recommendation" class="mt-2 text-3xl font-extrabold">tada 50% / riku 50%</p></div><button id="apply-analysis-btn" type="button" class="rounded-lg border border-acid/30 px-4 py-3 text-xs font-bold text-acid transition hover:bg-acid hover:text-ink">話し合いの初期値にする</button></div><p id="analysis-summary" class="mt-4 max-w-3xl text-sm leading-7 text-slate-400"></p><ul id="analysis-evidence" class="mt-3 space-y-1 text-xs leading-6 text-slate-500"></ul></div>
+              <div class="mt-4 rounded-xl border border-acid/20 bg-acid/[.045] p-5 sm:p-6"><div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p class="font-mono text-[10px] text-acid">ANALYSIS RECOMMENDATION（物量42.5% + 音楽的比重42.5% + 5軸音楽分析15%の加重平均）</p><p id="analysis-recommendation" class="mt-2 text-3xl font-extrabold">tada 50% / riku 50%</p></div><button id="apply-analysis-btn" type="button" class="rounded-lg border border-acid/30 px-4 py-3 text-xs font-bold text-acid transition hover:bg-acid hover:text-ink">話し合いの初期値にする</button></div><p id="analysis-summary" class="mt-4 max-w-3xl text-sm leading-7 text-slate-400"></p><ul id="analysis-evidence" class="mt-3 space-y-1 text-xs leading-6 text-slate-500"></ul></div>
               <p id="analysis-source" class="mt-3 text-right font-mono text-[9px] text-slate-600"></p>
             </div>
           </div>
@@ -451,12 +451,43 @@
       </div>
     </div>
 
+    <div id="axis-explainer-modal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/80 p-5 py-10 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="axis-explainer-title">
+      <div class="w-full max-w-2xl rounded-2xl border border-line bg-panel p-6 shadow-2xl sm:p-7">
+        <div class="flex items-center justify-between gap-3">
+          <div><p class="font-mono text-[10px] uppercase tracking-[.18em] text-acid">5-axis model</p><h2 id="axis-explainer-title" class="mt-1 text-lg font-bold">5軸音楽分析の見方</h2></div>
+          <button id="axis-explainer-close" type="button" class="btn btn-ghost btn-icon" aria-label="閉じる">✕</button>
+        </div>
+        <p class="mt-3 text-xs leading-6 text-slate-500">制作ログから抽出した「音楽要素」(メロディー・コード・ビートなど)ごとに、Gemini AIが以下の5つの軸で1〜5(採用度は0〜5)の点数を付けます。人物の優劣や演奏の上手さは評価対象外です。</p>
+        <div class="mt-5 space-y-4">
+          <div class="rounded-xl border border-line bg-black/20 p-4"><p class="text-sm font-bold text-acid">① 曲の同一性への近さ（identityScore）</p><p class="mt-1 text-xs leading-6 text-slate-500">その音楽要素が「この曲らしさ」の核にどれだけ近いかを1〜5で評価します。メインメロディーや固有のモチーフは高くなりやすく、汎用的なコード進行やミックス処理は低くなりやすい軸です。</p></div>
+          <div class="rounded-xl border border-line bg-black/20 p-4"><p class="text-sm font-bold text-acid">② 完成曲での影響範囲（scopeScore）</p><p class="mt-1 text-xs leading-6 text-slate-500">その要素が曲のどれだけの範囲に登場・影響しているかを1〜5で評価します。イントロだけの装飾より、サビや複数セクションで繰り返される要素の方が高くなります。</p></div>
+          <div class="rounded-xl border border-line bg-black/20 p-4"><p class="text-sm font-bold text-acid">③ 貢献者の役割（roleScore）</p><p class="mt-1 text-xs leading-6 text-slate-500">その要素に対する各担当者の関わり方を1〜5で評価します。1=微調整、2=整理・統合、3=発展、4=大幅な変形・再構築、5=核となる原案、という段階です。</p></div>
+          <div class="rounded-xl border border-line bg-black/20 p-4"><p class="text-sm font-bold text-acid">④ 最終版への残存度（adoptionScore）</p><p class="mt-1 text-xs leading-6 text-slate-500">その貢献が最終的な完成曲にどれだけ残っているかを0〜5で評価します。制作中に不採用・差し替えになった貢献は0になり、その要素の点数計算から除外されます。</p></div>
+          <div class="rounded-xl border border-line bg-black/20 p-4"><p class="text-sm font-bold text-acid">⑤ 代替不可能性（irreplaceabilityScore）</p><p class="mt-1 text-xs leading-6 text-slate-500">その貢献を抜いた場合に曲の印象や成立がどれだけ変わるかを1〜5で評価します。他の人でも代わりが利きやすい作業ほど低く、その人でなければ生まれなかった部分ほど高くなります。</p></div>
+        </div>
+        <p class="mt-4 text-xs leading-6 text-slate-500">各要素の点数は、要素が属するカテゴリ(メロディー・構成・ビートなど)の重要度(categoryWeights、合計100%)で重み付けされ、担当者ごとに積み上げて集計されます。カテゴリ重要度・要素・担当者の点数それぞれに、Gemini AIの確信度(confidence)も付与されます。</p>
+      </div>
+    </div>
+
+    <div id="beta-detail-modal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/80 p-5 py-10 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="beta-detail-title">
+      <div class="w-full max-w-3xl rounded-2xl border border-line bg-panel p-6 shadow-2xl sm:p-7">
+        <div class="flex items-center justify-between gap-3">
+          <div><p class="font-mono text-[10px] uppercase tracking-[.18em] text-acid">5-axis result</p><h2 id="beta-detail-title" class="mt-1 text-lg font-bold">5軸音楽分析の評価詳細</h2></div>
+          <button id="beta-detail-close" type="button" class="btn btn-ghost btn-icon" aria-label="閉じる">✕</button>
+        </div>
+        <div id="beta-detail-body" class="mt-5"></div>
+      </div>
+    </div>
+
     <div id="full-sync-progress" class="fixed left-1/2 top-20 z-50 hidden w-[min(92vw,440px)] -translate-x-1/2 rounded-xl border border-acid/30 bg-[#171b22]/95 p-4 shadow-2xl backdrop-blur" role="status" aria-live="polite">
       <div class="flex items-center justify-between gap-4"><div><p class="text-xs font-bold text-slate-100">全件取得中 <span class="font-normal text-slate-500">（進捗目安）</span></p><p id="full-sync-phase" class="mt-1 text-[10px] text-slate-500">準備しています</p></div><div class="text-right font-mono"><p id="full-sync-percent" class="text-sm font-bold text-acid">0%</p><p id="full-sync-remaining" class="text-[9px] text-slate-500">残り100%</p></div></div>
       <div class="mt-3 h-2 overflow-hidden rounded-full bg-black/40"><div id="full-sync-bar" class="h-full w-0 rounded-full bg-acid transition-[width] duration-300"></div></div>
     </div>
 
-    <div id="toast" class="pointer-events-none fixed bottom-40 left-1/2 z-50 -translate-x-1/2 translate-y-3 rounded-lg border border-acid/20 bg-[#171b22] px-4 py-3 text-xs font-semibold text-acid opacity-0 shadow-xl transition duration-200" role="status" aria-live="polite">コピーしました</div>
+    <div id="toast" class="pointer-events-none fixed bottom-40 left-1/2 z-50 flex max-w-[min(92vw,420px)] items-start gap-3 -translate-x-1/2 translate-y-3 rounded-lg border border-acid/20 bg-[#171b22] px-4 py-3 text-xs font-semibold text-acid opacity-0 shadow-xl transition duration-200" role="status" aria-live="polite">
+      <span id="toast-message" class="min-w-0 flex-1 leading-5">コピーしました</span>
+      <button id="toast-close" type="button" class="btn btn-icon hidden shrink-0 text-slate-400 hover:text-acid" aria-label="閉じる">✕</button>
+    </div>
   </div>
 
   <script>
@@ -501,9 +532,9 @@
     const SCOPE_LEVELS = {
       1: { label: 'ワンポイント', description: '単発の差し込み・装飾' },
       2: { label: '1セクション', description: 'Aメロ・サビなど一部の構成' },
-      3: { label: '複数セクション', description: '2つ以上の構成にまたがる範囲' },
-      4: { label: '曲全体', description: '一曲を通して存在する要素' },
-      5: { label: '中核・継続関与', description: '曲の骨格として作業全体を主導' }
+      3: { label: '複数セクション', description: '2〜3程度の構成にまたがる範囲' },
+      4: { label: '曲の大部分', description: 'サビ以外にも複数箇所で使われる、曲の骨格に近い要素' },
+      5: { label: '曲全体', description: '一曲を通して存在する要素' }
     };
     const EFFORT_LEVELS = {
       1: { label: '軽作業', description: '短時間でできる定型作業' },
@@ -907,8 +938,48 @@
       document.getElementById('analysis-summary').textContent = usePersonNames(result.summary || '');
       document.getElementById('analysis-evidence').innerHTML = (result.evidence || []).map(item => `<li>・${escapeHtml(usePersonNames(item))}</li>`).join('');
       document.getElementById('analysis-source').textContent = result.source || 'GOOGLE AI';
+      document.getElementById('beta-detail-btn').disabled = !hasBeta;
       const project = getActiveProject();
       if (project) project.analysis = { ...result, quantityA, musicalA, betaTadaPercent, recommendedA };
+    }
+
+    function renderBetaDetailModal() {
+      const body = document.getElementById('beta-detail-body');
+      const beta = getActiveProject()?.analysis?.beta;
+      if (!beta || !Array.isArray(beta.elements) || !beta.elements.length) {
+        body.innerHTML = '<p class="rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-600">まだ5軸音楽分析が実行されていません。「Google AIで分析」を実行すると詳細が表示されます。</p>';
+        return;
+      }
+      const confidenceBadge = value => {
+        const percent = Math.round(Math.max(0, Math.min(1, Number(value) || 0)) * 100);
+        return `<span class="font-mono text-[9px] ${percent < 70 ? 'text-amber-400' : 'text-slate-600'}">確信度 ${percent}%${percent < 70 ? ' · 要確認' : ''}</span>`;
+      };
+      const categoryRows = (beta.categoryWeights || []).map(item => `
+        <div class="flex items-start justify-between gap-3 border-b border-line py-2 text-xs last:border-0">
+          <div class="min-w-0"><span class="font-semibold">${escapeHtml(logTypes[item.category]?.label || item.category)}</span><p class="mt-0.5 text-slate-500">${escapeHtml(item.reason || '')}</p></div>
+          <div class="shrink-0 text-right"><span class="font-mono font-bold text-acid">${Number(item.weight).toFixed(1)}%</span><br>${confidenceBadge(item.confidence)}</div>
+        </div>`).join('');
+      const elementRows = beta.elements.map(element => {
+        const contributors = (element.contributors || []).map(c => `
+          <div class="rounded-lg border border-line bg-black/20 p-3">
+            <div class="flex items-center justify-between gap-2"><span class="font-mono text-xs font-bold ${c.person === 'riku' ? 'text-violet-300' : 'text-acid'}">${escapeHtml(PERSON_NAMES[c.person === 'riku' ? 'B' : 'A'])} · ${escapeHtml(c.role || '')}</span>${confidenceBadge(c.confidence)}</div>
+            <p class="mt-1 font-mono text-[10px] text-slate-500">役割${c.roleScore} ・ 採用度${c.adoptionScore} ・ 代替不可能性${c.irreplaceabilityScore}</p>
+            <p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(c.evidence || '')}</p>
+          </div>`).join('');
+        return `
+        <div class="rounded-xl border border-line p-4">
+          <div class="flex items-start justify-between gap-3"><div><span class="rounded bg-white/[.04] px-2 py-0.5 text-[9px] text-slate-500">${escapeHtml(logTypes[element.category]?.label || element.category)}</span><p class="mt-1 text-sm font-bold">${escapeHtml(element.name)}</p></div>${confidenceBadge(element.confidence)}</div>
+          <p class="mt-1 font-mono text-[10px] text-slate-500">同一性${element.identityScore} ・ 影響範囲${element.scopeScore}</p>
+          <p class="mt-2 text-xs leading-5 text-slate-500">${escapeHtml(element.evidence || '')}</p>
+          <div class="mt-3 grid gap-2 sm:grid-cols-2">${contributors}</div>
+        </div>`;
+      }).join('');
+      body.innerHTML = `
+        <p class="text-sm leading-7 text-slate-400">${escapeHtml(beta.summary || '')}</p>
+        <h3 class="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">カテゴリ重要度</h3>
+        <div class="mt-2 rounded-xl border border-line p-4">${categoryRows}</div>
+        <h3 class="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">音楽要素ごとの評価</h3>
+        <div class="mt-2 space-y-3">${elementRows}</div>`;
     }
 
     function renderProductionLogs() {
@@ -1150,7 +1221,7 @@
         showToast('Google AIによるログ分析が完了しました（5軸音楽分析を含む）');
       } catch (error) {
         renderAnalysis({ ...calculateLocalAnalysis(), source: 'LOCAL FALLBACK' });
-        showToast(`AI分析エラー: ${error.message}`);
+        showToast(`AI分析エラー: ${error.message}`, { persistent: true });
       } finally {
         document.getElementById('analysis-loading').classList.add('hidden');
         document.getElementById('analysis-loading').classList.remove('flex');
@@ -1482,13 +1553,23 @@
     }));
 
     let toastTimer;
-    function showToast(message) {
+    function hideToast() {
+      document.getElementById('toast').classList.add('opacity-0', 'translate-y-3');
+    }
+    function showToast(message, options = {}) {
+      const persistent = options.persistent === true;
       const toast = document.getElementById('toast');
-      toast.textContent = message;
+      document.getElementById('toast-message').textContent = message;
+      document.getElementById('toast-close').classList.toggle('hidden', !persistent);
+      toast.style.pointerEvents = persistent ? 'auto' : '';
       toast.classList.remove('opacity-0', 'translate-y-3');
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.add('opacity-0', 'translate-y-3'), 2200);
+      if (!persistent) toastTimer = setTimeout(hideToast, 2200);
     }
+    document.getElementById('toast-close').addEventListener('click', () => {
+      clearTimeout(toastTimer);
+      hideToast();
+    });
 
     document.getElementById('api-form').addEventListener('submit', event => {
       event.preventDefault();
@@ -1537,6 +1618,24 @@
     document.getElementById('project-info-done').addEventListener('click', closeProjectInfoModal);
     document.getElementById('project-info-modal').addEventListener('click', event => {
       if (event.target.id === 'project-info-modal') closeProjectInfoModal();
+    });
+    function toggleModal(id, show) {
+      const modal = document.getElementById(id);
+      modal.classList.toggle('hidden', !show);
+      modal.classList.toggle('flex', show);
+    }
+    document.getElementById('axis-explainer-btn').addEventListener('click', () => toggleModal('axis-explainer-modal', true));
+    document.getElementById('axis-explainer-close').addEventListener('click', () => toggleModal('axis-explainer-modal', false));
+    document.getElementById('axis-explainer-modal').addEventListener('click', event => {
+      if (event.target.id === 'axis-explainer-modal') toggleModal('axis-explainer-modal', false);
+    });
+    document.getElementById('beta-detail-btn').addEventListener('click', () => {
+      renderBetaDetailModal();
+      toggleModal('beta-detail-modal', true);
+    });
+    document.getElementById('beta-detail-close').addEventListener('click', () => toggleModal('beta-detail-modal', false));
+    document.getElementById('beta-detail-modal').addEventListener('click', event => {
+      if (event.target.id === 'beta-detail-modal') toggleModal('beta-detail-modal', false);
     });
     document.getElementById('delete-form').addEventListener('submit', async event => {
       event.preventDefault();
