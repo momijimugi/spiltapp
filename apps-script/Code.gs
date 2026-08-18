@@ -54,6 +54,9 @@ function doPost(event) {
     if (parameters.action === 'analyze') {
       return json_({ ok: true, analysis: analyzeProject_(payload) });
     }
+    if (parameters.action === 'analyzeCombined') {
+      return json_({ ok: true, analysis: analyzeCombined_(payload) });
+    }
     if (parameters.action === 'loadBeta') {
       return json_({ ok: true, ...loadBetaContext_(payload) });
     }
@@ -646,6 +649,41 @@ function confidence_(value) {
   if (confidence > 1) confidence /= 100;
   return Math.max(0, Math.min(1, confidence));
 }
+function analyzeCombined_(payload) {
+  if (!payload || !Array.isArray(payload.logs) || !payload.logs.length) {
+    throw new Error('分析する制作ログがありません。');
+  }
+  const project = payload.project || {};
+  const logAnalysis = analyzeProject_(payload);
+  const betaAnalysis = analyzeBeta_({ project: project, logs: payload.logs });
+  const betaTadaPercent = clamp_(Number(betaAnalysis.calculation && betaAnalysis.calculation.tadaPercent), 0, 100, logAnalysis.recommendedA);
+  const recommendedA = (Number(logAnalysis.recommendedA) + betaTadaPercent) / 2;
+
+  if (project.id) {
+    try {
+      saveBetaAnalysis_({ projectId: project.id, projectTitle: project.title || 'Untitled Track', status: 'draft', analysis: betaAnalysis });
+    } catch (error) {
+      // ベータ保存に失敗しても統合分析自体は返す。
+    }
+  }
+
+  return {
+    metricVersion: 4,
+    quantityA: logAnalysis.quantityA,
+    musicalA: logAnalysis.musicalA,
+    logRecommendedA: logAnalysis.recommendedA,
+    betaTadaPercent: betaTadaPercent,
+    recommendedA: recommendedA,
+    quantityDetail: logAnalysis.quantityDetail,
+    musicalDetail: logAnalysis.musicalDetail,
+    betaSummary: betaAnalysis.summary,
+    beta: betaAnalysis,
+    summary: logAnalysis.summary,
+    evidence: logAnalysis.evidence,
+    model: logAnalysis.model
+  };
+}
+
 function analyzeProject_(payload) {
   if (!payload || !Array.isArray(payload.logs) || !payload.logs.length) {
     throw new Error('分析する制作ログがありません。');
