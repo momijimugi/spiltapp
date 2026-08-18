@@ -57,15 +57,6 @@ function doPost(event) {
     if (parameters.action === 'analyzeCombined') {
       return json_({ ok: true, analysis: analyzeCombined_(payload) });
     }
-    if (parameters.action === 'loadBeta') {
-      return json_({ ok: true, ...loadBetaContext_(payload) });
-    }
-    if (parameters.action === 'analyzeBeta') {
-      return json_({ ok: true, analysis: analyzeBeta_(payload) });
-    }
-    if (parameters.action === 'saveBeta') {
-      return json_({ ok: true, analysis: saveBetaAnalysis_(payload) });
-    }
     if (parameters.action === 'deleteProject') {
       if (!payload || !payload.projectId) throw new Error('Project ID is required.');
       return json_({ ok: true, ...deleteProject_(payload.projectId) });
@@ -399,23 +390,6 @@ function parseNarrative_(payload) {
     };
   });
 }
-function loadBetaContext_(payload) {
-  const projectId = payload && String(payload.projectId || '').trim();
-  if (!projectId) throw new Error('案件IDがありません。');
-  const spreadsheet = getSpreadsheet_();
-  const projectSheet = ensureSheet_(spreadsheet, 'Projects', PROJECT_HEADERS);
-  const logSheet = ensureSheet_(spreadsheet, 'ProductionLogs', LOG_HEADERS);
-  const betaSheet = ensureSheet_(spreadsheet, 'BetaAnalyses', BETA_ANALYSIS_HEADERS);
-  const project = readProjects_(projectSheet, logSheet).find(item => String(item.id) === projectId);
-  if (!project) throw new Error('案件が見つかりません。先にメインページで同期してください。');
-  const betaRecord = readRows_(betaSheet, BETA_ANALYSIS_HEADERS).find(item => String(item.projectId) === projectId);
-  return {
-    project: project,
-    analysis: betaRecord ? parseJson_(betaRecord.analysisJson, null) : null,
-    serverTime: new Date().toISOString()
-  };
-}
-
 function analyzeBeta_(payload) {
   if (!payload || !Array.isArray(payload.logs) || !payload.logs.length) {
     throw new Error('分析する制作ログがありません。');
