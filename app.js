@@ -50,6 +50,31 @@
       4: { label: '高負荷', description: '専門性や試行錯誤が多い作業' },
       5: { label: '非常に高負荷', description: '高度で継続的な作業' }
     };
+    // 関わり方（Contribution Mode）。任意入力で、未選択（空文字）を必ず許容する。
+    const CONTRIBUTION_MODES = {
+      creation: '新規作成',
+      development: '発展・再構築',
+      modification: '修正・調整',
+      integration: '統合・判断',
+      execution: '実装・演奏'
+    };
+    const CONTRIBUTION_MODE_SHORT = {
+      creation: '新規',
+      development: '発展',
+      modification: '修正',
+      integration: '統合',
+      execution: '実装'
+    };
+    // 5軸のデフォルトウェイト。調整はここ一箇所で行う（Code.gs側と同じ値）。
+    const ANALYSIS_WEIGHTS = {
+      quantity: 0.25,
+      musical: 0.30,
+      agency: 0.20,
+      resolution: 0.20,
+      fiveAxis: 0.05
+    };
+    // これ未満のconfidenceのAI評価は最終スプリットへ入れない。
+    const MIN_AXIS_CONFIDENCE = 0.70;
     const STORAGE_KEY = 'splitlab_projects_v2';
     const API_URL_KEY = 'splitlab_apps_script_url';
     const DIRTY_PROJECTS_KEY = 'splitlab_dirty_projects_v1';
@@ -58,11 +83,11 @@
     const SYNC_SCHEMA_VERSION = 'delta-v1';
     // Bump to force every client to do one full fetch (see the backfill note below).
     const ANALYSIS_BACKFILL_KEY = 'splitlab_analysis_backfill';
-    const ANALYSIS_BACKFILL_VERSION = 'v1';
+    const ANALYSIS_BACKFILL_VERSION = 'v2';
     // Analyses produced by a superseded metric formula are discarded on load so
-    // stale numbers never resurface. Keep this at or below the lowest version
-    // still in use: analyzeCombined_ returns 4, the local calculation returns 2.
-    const MIN_ANALYSIS_METRIC_VERSION = 2;
+    // stale numbers never resurface. The 5-axis model (metricVersion 5) replaced the
+    // 42.5/42.5/15 formula, so anything older must not reach the new UI.
+    const MIN_ANALYSIS_METRIC_VERSION = 5;
     let projects = loadProjects();
     let dirtyProjectIds = loadDirtyProjectIds();
     let lastRemoteSyncAt = localStorage.getItem(LAST_REMOTE_SYNC_KEY) || '';
@@ -213,6 +238,47 @@
       return 5;
     }
 
+    function normalizeContributionMode(value) {
+      const mode = String(value ?? '').trim();
+      return Object.prototype.hasOwnProperty.call(CONTRIBUTION_MODES, mode) ? mode : '';
+    }
+
+    // 「関わり方」はコンパクトなチップで選択する。任意項目なので未選択に戻せるようにする。
+    function contributionModeChips(selected = '') {
+      return Object.entries(CONTRIBUTION_MODE_SHORT).map(([mode, label]) => {
+        const active = mode === normalizeContributionMode(selected);
+        return `<button type="button" data-mode-chip="${mode}" aria-pressed="${active}" class="mode-chip rounded-full border px-3 py-1.5 font-mono text-[11px] transition ${active ? 'border-acid/60 bg-acid/10 text-acid' : 'border-line text-slate-400 hover:border-slate-600'}">${label}</button>`;
+      }).join('');
+    }
+
+    function renderContributionModeField(container, selected = '') {
+      if (!container) return;
+      container.innerHTML = contributionModeChips(selected);
+      container.dataset.mode = normalizeContributionMode(selected);
+    }
+
+    function readContributionMode(container) {
+      return container ? normalizeContributionMode(container.dataset.mode) : '';
+    }
+
+    // チップは同じ値を再クリックすると未選択へ戻る（初期値を勝手に埋めない）。
+    document.addEventListener('click', event => {
+      const chip = event.target.closest('[data-mode-chip]');
+      if (!chip) return;
+      const container = chip.parentElement;
+      const next = container.dataset.mode === chip.dataset.modeChip ? '' : chip.dataset.modeChip;
+      renderContributionModeField(container, next);
+    });
+
+    // 利用可能な軸だけでウェイトを再正規化する汎用関数（Code.gsのcombineAxes_と同じ考え方）。
+    function combineAxes(axes) {
+      const usable = axes.filter(axis => axis.available && Number.isFinite(Number(axis.value)));
+      const weightTotal = usable.reduce((sum, axis) => sum + Number(axis.weight || 0), 0);
+      if (!usable.length || weightTotal <= 0) return { value: null, weightTotal: 0, usedAxes: [] };
+      const value = usable.reduce((sum, axis) => sum + Number(axis.value) * Number(axis.weight), 0) / weightTotal;
+      return { value: Math.max(0, Math.min(100, value)), weightTotal, usedAxes: usable.map(axis => axis.key) };
+    }
+
     function normalizeLog(log) {
       const fallbackDate = (log.id && typeof log.id === 'string' && log.id.startsWith('log-'))
         ? new Date(Number(log.id.split('-')[1]) || Date.now()).toISOString()
@@ -221,7 +287,9 @@
         ...log,
         createdAt: log.createdAt || fallbackDate,
         scope: normalizeLevel(log.scope, legacyScopeLevel(log.duration)),
-        effort: normalizeLevel(log.effort, legacyEffortLevel(log.events))
+        effort: normalizeLevel(log.effort, legacyEffortLevel(log.events)),
+        // 過去ログにはこの項目が無い。未設定は空文字のまま扱い、修正を要求しない。
+        contributionMode: normalizeContributionMode(log.contributionMode)
       };
     }
 
@@ -416,19 +484,29 @@
       ].filter(value => value !== null);
       const quantityA = quantityRatios.length ? quantityRatios.reduce((sum, value) => sum + value, 0) / quantityRatios.length : 50;
       const musicalA = ratioFor(totals.A.musical, totals.B.musical) ?? 50;
-      const recommendedA = quantityA * 0.4 + musicalA * 0.6;
+      // ローカルでは物量と音楽的比重のベースラインまで。創作主体性・完成寄与・5軸は
+      // 根拠のない擬似スコアを作らず、AI分析後に算出する。
+      const recommendedA = combineAxes([
+        { key: 'quantity', value: quantityA, weight: ANALYSIS_WEIGHTS.quantity, available: true },
+        { key: 'musical', value: musicalA, weight: ANALYSIS_WEIGHTS.musical, available: true }
+      ]).value;
       return {
-        metricVersion: 2,
+        metricVersion: 5,
         quantityA,
         musicalA,
+        creativeAgencyA: null,
+        creativeResolutionA: null,
+        betaTadaPercent: null,
         recommendedA,
-        summary: '記録された物量とカテゴリ別の音楽的中心性を分けて集計した基準値です。Google AI分析では、役割や採用箇所の説明も加味します。',
+        summary: '記録された物量とカテゴリ別の音楽的中心性を分けて集計した基準値です。創作主体性・完成寄与・5軸音楽分析はGoogle AI分析後に算出されます。',
         evidence: [
           `物量 — tada: ${totals.A.count}本・範囲${totals.A.scope}pt・カロリー${totals.A.effort}pt / riku: ${totals.B.count}本・範囲${totals.B.scope}pt・カロリー${totals.B.effort}pt`,
           `音楽的比重スコア — tada: ${totals.A.musical} / riku: ${totals.B.musical}`
         ],
         quantityDetail: '本数・5段階の貢献範囲・制作負荷（カロリー）を同じ比重で集計',
         musicalDetail: 'メロディー・構成・モチーフなど曲の中心性に貢献範囲を加味',
+        agencyDetail: 'AI分析後に算出',
+        resolutionDetail: 'AI分析後に算出',
         source: 'LOCAL BASELINE'
       };
     }
@@ -447,32 +525,72 @@
         .replace(/\bB(?=[はがのにをへもと、。])/g, 'riku')
         .replace(/(^|[\s（(・:：,\/])A(?=$|[\s）)・:：,\/])/g, '$1tada')
         .replace(/(^|[\s（(・:：,\/])B(?=$|[\s）)・:：,\/])/g, '$1riku');
-      const quantityA = Math.max(0, Math.min(100, Number(result.quantityA) || 0));
-      const musicalA = Math.max(0, Math.min(100, Number(result.musicalA) || 0));
-      const hasBeta = Number.isFinite(Number(result.betaTadaPercent));
-      const betaTadaPercent = Math.max(0, Math.min(100, Number(result.betaTadaPercent) || 0));
-      const recommendedA = Math.max(0, Math.min(100, Number(result.recommendedA) || 0));
+      // 判定不能な軸はnull。50:50を作らず「判定保留」として最終計算からも除外する。
+      const axisValue = (value, confidence) => {
+        if (value === null || value === undefined || value === '') return null;
+        const number = Number(value);
+        if (!Number.isFinite(number)) return null;
+        if (confidence !== undefined && Number(confidence) < MIN_AXIS_CONFIDENCE) return null;
+        return Math.max(0, Math.min(100, number));
+      };
+      const quantityA = axisValue(result.quantityA) ?? 50;
+      const musicalA = axisValue(result.musicalA, result.musicalConfidence);
+      const agencyA = axisValue(result.creativeAgencyA, result.agencyConfidence);
+      const resolutionA = axisValue(result.creativeResolutionA, result.resolutionConfidence);
+      const betaTadaPercent = axisValue(result.betaTadaPercent);
+
+      const renderAxisCard = (prefix, value, detailText, pendingText) => {
+        const pending = value === null;
+        document.getElementById(`${prefix}-score`).textContent = pending ? '判定保留' : `tada ${value.toFixed(0)} / riku ${(100 - value).toFixed(0)}`;
+        document.getElementById(`${prefix}-bar-a`).style.width = pending ? '0%' : `${value}%`;
+        document.getElementById(`${prefix}-bar-b`).style.width = pending ? '0%' : `${100 - value}%`;
+        document.getElementById(`${prefix}-detail`).textContent = pending ? pendingText : usePersonNames(detailText);
+      };
+
       document.getElementById('analysis-empty').classList.add('hidden');
       document.getElementById('analysis-result').classList.remove('hidden');
-      document.getElementById('quantity-score').textContent = `tada ${quantityA.toFixed(0)} / riku ${(100 - quantityA).toFixed(0)}`;
-      document.getElementById('musical-score').textContent = `tada ${musicalA.toFixed(0)} / riku ${(100 - musicalA).toFixed(0)}`;
-      document.getElementById('quantity-bar-a').style.width = `${quantityA}%`;
-      document.getElementById('quantity-bar-b').style.width = `${100 - quantityA}%`;
-      document.getElementById('musical-bar-a').style.width = `${musicalA}%`;
-      document.getElementById('musical-bar-b').style.width = `${100 - musicalA}%`;
-      document.getElementById('quantity-detail').textContent = usePersonNames(result.quantityDetail || '本数・貢献範囲・制作負荷から算出');
-      document.getElementById('musical-detail').textContent = usePersonNames(result.musicalDetail || '曲の成立への中心性から算出');
-      document.getElementById('beta-score').textContent = hasBeta ? `tada ${betaTadaPercent.toFixed(0)} / riku ${(100 - betaTadaPercent).toFixed(0)}` : '未実行';
-      document.getElementById('beta-bar-a').style.width = hasBeta ? `${betaTadaPercent}%` : '50%';
-      document.getElementById('beta-bar-b').style.width = hasBeta ? `${100 - betaTadaPercent}%` : '50%';
-      document.getElementById('beta-detail').textContent = hasBeta ? usePersonNames(result.betaSummary || '要素ごとの5軸評価から算出しました。') : 'Google AIで分析すると、要素ごとの5軸評価から算出されます。';
+      renderAxisCard('quantity', quantityA, result.quantityDetail || '本数・貢献範囲・制作負荷から算出', '制作ログを追加すると算出されます。');
+      renderAxisCard('musical', musicalA, result.musicalDetail || '曲の成立への中心性から算出', 'ログの根拠が不足しているため判定を保留しました。最終結果からも除外されています。');
+      renderAxisCard('agency', agencyA, result.agencyDetail || '', 'Google AIで分析すると算出されます。根拠が不足している場合は判定保留のままです。');
+      renderAxisCard('resolution', resolutionA, result.resolutionDetail || '', 'Google AIで分析すると算出されます。根拠が不足している場合は判定保留のままです。');
+      renderAxisCard('beta', betaTadaPercent, result.betaSummary || '要素ごとの5軸評価から算出しました。', 'Google AIで分析すると算出されます。確信度が不足する評価は除外され、材料が足りない場合は判定保留になります。');
+
+      // 利用できない軸はウェイトから外し、残りを100%へ再正規化する。
+      const combined = combineAxes([
+        { key: 'quantity', label: '物量', value: quantityA, weight: ANALYSIS_WEIGHTS.quantity, available: true },
+        { key: 'musical', label: '音楽的比重', value: musicalA, weight: ANALYSIS_WEIGHTS.musical, available: musicalA !== null },
+        { key: 'agency', label: '創作主体性', value: agencyA, weight: ANALYSIS_WEIGHTS.agency, available: agencyA !== null },
+        { key: 'resolution', label: '完成寄与', value: resolutionA, weight: ANALYSIS_WEIGHTS.resolution, available: resolutionA !== null },
+        { key: 'fiveAxis', label: '5軸', value: betaTadaPercent, weight: ANALYSIS_WEIGHTS.fiveAxis, available: betaTadaPercent !== null }
+      ]);
+      const recommendedA = result.recommendedA !== null && result.recommendedA !== undefined
+        && Number.isFinite(Number(result.recommendedA)) && Number(result.metricVersion) >= 5
+        ? Math.max(0, Math.min(100, Number(result.recommendedA)))
+        : (combined.value ?? quantityA);
+      const axisLabels = { quantity: '物量', musical: '音楽的比重', agency: '創作主体性', resolution: '完成寄与', fiveAxis: '5軸' };
+      const weightTotal = combined.weightTotal || 1;
+      const formulaText = combined.usedAxes
+        .map(key => `${axisLabels[key]}${(ANALYSIS_WEIGHTS[key] / weightTotal * 100).toFixed(1)}%`)
+        .join(' + ');
+      document.getElementById('analysis-formula').textContent = `RECOMMENDATION（${formulaText || '算出不可'}）`;
       document.getElementById('analysis-recommendation').textContent = `tada ${recommendedA.toFixed(1)}% / riku ${(100 - recommendedA).toFixed(1)}%`;
       document.getElementById('analysis-summary').textContent = usePersonNames(result.summary || '');
       document.getElementById('analysis-evidence').innerHTML = (result.evidence || []).map(item => `<li>・${escapeHtml(usePersonNames(item))}</li>`).join('');
       document.getElementById('analysis-source').textContent = result.source || 'GOOGLE AI';
-      document.getElementById('beta-detail-btn').disabled = !hasBeta;
+      document.getElementById('beta-detail-btn').disabled = betaTadaPercent === null;
       const project = getActiveProject();
-      if (project && persist) project.analysis = { ...result, quantityA, musicalA, betaTadaPercent, recommendedA };
+      if (project && persist) {
+        project.analysis = {
+          ...result,
+          metricVersion: 5,
+          quantityA,
+          musicalA,
+          creativeAgencyA: agencyA,
+          creativeResolutionA: resolutionA,
+          betaTadaPercent,
+          recommendedA
+        };
+      }
     }
 
     function renderBetaDetailModal() {
@@ -508,6 +626,7 @@
       }).join('');
       body.innerHTML = `
         <p class="text-sm leading-7 text-slate-400">${escapeHtml(beta.summary || '')}</p>
+        <p class="mt-2 text-[10px] leading-4 text-amber-400/80">確信度70%未満の評価はスコア計算から除外されます。十分な材料が残らない場合、5軸音楽分析は判定保留となり最終結果へは加算されません。</p>
         <h3 class="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">カテゴリ重要度</h3>
         <div class="mt-2 rounded-xl border border-line p-4">${categoryRows}</div>
         <h3 class="mt-5 text-xs font-bold uppercase tracking-wide text-slate-500">音楽要素ごとの評価</h3>
@@ -596,6 +715,7 @@
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="truncate text-sm font-bold text-slate-100">${escapeHtml(log.name)}</p>
                   <span class="shrink-0 rounded bg-white/[.05] px-2 py-0.5 text-[10px] text-slate-400">${escapeHtml(logTypes[log.type]?.label || log.type)}</span>
+                  ${log.contributionMode ? `<span class="shrink-0 rounded border border-line px-2 py-0.5 text-[10px] text-slate-500">${escapeHtml(CONTRIBUTION_MODES[log.contributionMode])}</span>` : ''}
                 </div>
                 <p class="mt-1 truncate font-mono text-xs text-slate-400">${log.count}本 · 範囲${log.scope}:${SCOPE_LEVELS[log.scope].label} · カロリー${log.effort}:${EFFORT_LEVELS[log.effort].label}${timeStr ? ` · ${timeStr}` : ''}</p>
               </div>
@@ -689,6 +809,7 @@
       document.getElementById('log-count').value = '1';
       document.getElementById('log-scope').value = '3';
       document.getElementById('log-effort').value = '3';
+      renderContributionModeField(document.getElementById('log-contribution-mode'), '');
       document.getElementById('log-submit-btn').textContent = '追加';
       document.getElementById('cancel-log-edit').classList.add('hidden');
     }
@@ -704,6 +825,7 @@
       document.getElementById('log-scope').value = String(normalizeLevel(log.scope));
       document.getElementById('log-effort').value = String(normalizeLevel(log.effort));
       document.getElementById('log-details').value = log.details || '';
+      renderContributionModeField(document.getElementById('log-contribution-mode'), log.contributionMode);
       document.getElementById('log-submit-btn').textContent = '変更を保存';
       document.getElementById('cancel-log-edit').classList.remove('hidden');
       openLogFormModal();
@@ -743,13 +865,15 @@
                 <label><span class="mb-1 block text-[9px] text-slate-600">貢献範囲</span><select class="draft-scope w-full rounded-lg border border-line bg-[#0d1016] px-3 py-2 text-xs">${levelOptions(SCOPE_LEVELS, draft.scope)}</select></label>
                 <label><span class="mb-1 block text-[9px] text-slate-600">制作負荷（カロリー）</span><select class="draft-effort w-full rounded-lg border border-line bg-[#0d1016] px-3 py-2 text-xs">${levelOptions(EFFORT_LEVELS, draft.effort)}</select></label>
               </div>
-              <label class="mt-3 block"><span class="mb-1 block text-[9px] text-slate-600">役割・採用箇所</span><textarea rows="2" class="draft-details w-full resize-y rounded-lg border border-line bg-black/30 px-3 py-2 text-xs leading-5">${escapeHtml(draft.details)}</textarea></label>
+              <div class="mt-3"><span class="mb-1 block text-[9px] text-slate-600">関わり方（任意）</span><div class="draft-mode flex flex-wrap gap-1.5"></div></div>
+              <label class="mt-3 block"><span class="mb-1 block text-[9px] text-slate-600">役割・元になった案・変更内容・採用箇所</span><textarea rows="2" class="draft-details w-full resize-y rounded-lg border border-line bg-black/30 px-3 py-2 text-xs leading-5">${escapeHtml(draft.details)}</textarea></label>
               ${draft.uncertainFields?.length ? `<p class="mt-2 text-[10px] text-amber-400">要確認: ${escapeHtml(draft.uncertainFields.join('、'))}</p>` : ''}
             </div>
           </div>
         </div>`).join('');
       container.querySelectorAll('.draft-row').forEach((row, index) => {
         row.querySelector('.draft-type').value = parsedLogDrafts[index].type;
+        renderContributionModeField(row.querySelector('.draft-mode'), parsedLogDrafts[index].contributionMode);
       });
       document.getElementById('reopen-drafts-btn').classList.toggle('hidden', parsedLogDrafts.length === 0);
     }
@@ -793,6 +917,8 @@
           count: Math.max(1, Number(log.count) || 1),
           scope: normalizeLevel(log.scope),
           effort: normalizeLevel(log.effort),
+          // 任意項目。AIが判断できなければ空のままにし、登録は妨げない。
+          contributionMode: normalizeContributionMode(log.contributionMode),
           details: String(log.details || ''),
           uncertainFields: Array.isArray(log.uncertainFields) ? log.uncertainFields : []
         }));
@@ -834,7 +960,7 @@
         }
         renderAnalysis({ ...result.analysis, source: 'GOOGLE GEMINI' }, { persist: true });
         scheduleProjectSave();
-        showToast('Google AIによるログ分析が完了しました（5軸音楽分析を含む）');
+        showToast('Google AIによるログ分析が完了しました（5軸貢献分析）');
       } catch (error) {
         renderAnalysis({ ...calculateLocalAnalysis(), source: 'LOCAL FALLBACK' });
         showToast(`AI分析エラー: ${error.message}`, { persistent: true });
@@ -1149,13 +1275,23 @@
       scheduleProjectSave();
     });
 
+    // 判定保留の軸は「50 / 50」ではなく保留として出力する。
+    function axisCopyLine(label, value) {
+      if (value === null || value === undefined || value === '') return `${label}: 判定保留`;
+      const number = Number(value);
+      return Number.isFinite(number)
+        ? `${label}: tada ${number.toFixed(1)}% / riku ${(100 - number).toFixed(1)}%`
+        : `${label}: 判定保留`;
+    }
+
     function buildCopyText() {
       const result = calculateSplit();
       const project = getActiveProject();
       const analysis = project?.analysis;
       const logLines = (project?.logs || []).map(rawLog => {
         const log = normalizeLog(rawLog);
-        return `${PERSON_NAMES[log.person] || log.person} / ${logTypes[log.type]?.label || log.type} / ${log.name} / ${log.count}本 / 貢献範囲 ${log.scope}:${SCOPE_LEVELS[log.scope].label} / 制作負荷 ${log.effort}:${EFFORT_LEVELS[log.effort].label} / ${log.details || '詳細なし'}`;
+        const mode = log.contributionMode ? ` / 関わり方 ${CONTRIBUTION_MODES[log.contributionMode]}` : '';
+        return `${PERSON_NAMES[log.person] || log.person} / ${logTypes[log.type]?.label || log.type} / ${log.name} / ${log.count}本 / 貢献範囲 ${log.scope}:${SCOPE_LEVELS[log.scope].label} / 制作負荷 ${log.effort}:${EFFORT_LEVELS[log.effort].label}${mode} / ${log.details || '詳細なし'}`;
       });
       return [
         `SPLIT DATA — ${project?.title || 'Untitled Track'}`,
@@ -1165,9 +1301,14 @@
         ...(logLines.length ? logLines : ['記録なし']),
         '',
         '[分析結果]',
-        analysis ? `物量: tada ${Number(analysis.quantityA).toFixed(1)}% / riku ${(100 - Number(analysis.quantityA)).toFixed(1)}%` : '未分析',
-        analysis ? `音楽的比重: tada ${Number(analysis.musicalA).toFixed(1)}% / riku ${(100 - Number(analysis.musicalA)).toFixed(1)}%` : '',
-        analysis ? `推奨値: tada ${Number(analysis.recommendedA).toFixed(1)}% / riku ${(100 - Number(analysis.recommendedA)).toFixed(1)}%` : '',
+        ...(analysis ? [
+          axisCopyLine('物量', analysis.quantityA),
+          axisCopyLine('音楽的比重', analysis.musicalA),
+          axisCopyLine('創作主体性', analysis.creativeAgencyA),
+          axisCopyLine('完成・収束寄与', analysis.creativeResolutionA),
+          axisCopyLine('5軸音楽分析', analysis.betaTadaPercent),
+          axisCopyLine('推奨値', analysis.recommendedA)
+        ] : ['未分析']),
         '',
         '--------------------------------',
         `FINAL AGREEMENT: tada ${result.a.toFixed(1)}% / riku ${result.b.toFixed(1)}%`
@@ -1406,6 +1547,7 @@
           count: Math.max(1, Number(row.querySelector('.draft-count').value) || 1),
           scope: normalizeLevel(row.querySelector('.draft-scope').value),
           effort: normalizeLevel(row.querySelector('.draft-effort').value),
+          contributionMode: readContributionMode(row.querySelector('.draft-mode')),
           details: row.querySelector('.draft-details').value.trim(),
           createdAt: new Date().toISOString()
         });
@@ -1438,6 +1580,7 @@
         count: Math.max(1, Number(document.getElementById('log-count').value) || 1),
         scope: normalizeLevel(document.getElementById('log-scope').value),
         effort: normalizeLevel(document.getElementById('log-effort').value),
+        contributionMode: readContributionMode(document.getElementById('log-contribution-mode')),
         details: document.getElementById('log-details').value.trim()
       };
       const editingIndex = editingLogId === null ? -1 : project.logs.findIndex(log => String(log.id) === String(editingLogId));

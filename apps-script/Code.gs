@@ -5,8 +5,28 @@ const PROJECT_HEADERS = [
 ];
 const LOG_HEADERS = [
   'id', 'projectId', 'person', 'type', 'name', 'count', 'duration',
-  'events', 'details', 'createdAt', 'scope', 'effort'
+  'events', 'details', 'createdAt', 'scope', 'effort',
+  // 新しい列は必ず末尾へ追加する（既存シートの列位置を壊さないため）。
+  'contributionMode'
 ];
+// 任意入力。未選択（空文字）を必ず許容する。
+const CONTRIBUTION_MODES = {
+  creation: '新規作成',
+  development: '発展・再構築',
+  modification: '修正・調整',
+  integration: '統合・判断',
+  execution: '実装・演奏'
+};
+// 5軸のデフォルトウェイト。調整はここだけで済むよう一箇所に集約する。
+const ANALYSIS_WEIGHTS = {
+  quantity: 0.25,
+  musical: 0.30,
+  agency: 0.20,
+  resolution: 0.20,
+  fiveAxis: 0.05
+};
+// これ未満のconfidenceのAI評価は最終スプリットへ入れない。
+const MIN_AXIS_CONFIDENCE = 0.70;
 const DELETED_PROJECT_HEADERS = PROJECT_HEADERS.concat(['deletedAt']);
 const DELETED_LOG_HEADERS = LOG_HEADERS.concat(['projectTitle', 'deletedAt']);
 const BETA_ANALYSIS_HEADERS = ['projectId', 'projectTitle', 'status', 'analysisJson', 'updatedAt', 'confirmedAt'];
@@ -262,7 +282,8 @@ function replaceProjectLogs_(sheet, projectId, logs) {
     log.details || '',
     log.createdAt || new Date().toISOString(),
     level_(log.scope, 0),
-    level_(log.effort, 0)
+    level_(log.effort, 0),
+    contributionMode_(log.contributionMode)
   ]);
   sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, LOG_HEADERS.length).setValues(rows);
 }
@@ -279,7 +300,8 @@ function logsEquivalent_(storedLogs, incomingLogs) {
     String(log.details || ''),
     String(log.createdAt || ''),
     level_(log.scope, 0),
-    level_(log.effort, 0)
+    level_(log.effort, 0),
+    contributionMode_(log.contributionMode)
   ];
   const normalizeIncoming = log => normalizeStored({
     ...log,
@@ -303,6 +325,7 @@ function readProjects_(projectSheet, logSheet) {
       events: Math.max(0, Number(log.events) || 0),
       scope: level_(log.scope, 0),
       effort: level_(log.effort, 0),
+      contributionMode: contributionMode_(log.contributionMode),
       details: log.details,
       createdAt: log.createdAt
     });
@@ -346,9 +369,11 @@ function parseNarrative_(payload) {
     'scope: 1=ワンポイント（単発の差し込み・装飾）、2=1セクション（Aメロ・サビなど一部の構成）、3=複数セクション（2〜3程度の構成にまたがる範囲）、4=曲の大部分（サビ以外にも複数箇所で使われる、曲の骨格に近い要素）、5=曲全体（一曲を通して存在する要素）。',
     'effort: 1=軽作業、2=やや工夫が必要、3=標準的な負荷、4=高負荷、5=非常に高負荷。難易度・専門性・試行錯誤・所要労力を総合してください。',
     '原文から判断できないscopeまたはeffortは中立値3にし、uncertainFieldsへ「貢献範囲」または「制作負荷」を追加してください。',
-    'nameは短い作業名。detailsには曲中での役割、使用機材、加工、採用箇所など、原文にある事実を残してください。',
+    'nameは短い作業名。detailsには役割、元になった案、変更内容、採用箇所など、原文にある事実を残してください。',
+    'contributionModeは任意項目です。原文からその人の関わり方が明確に読み取れる場合だけ creation(新規作成) / development(発展・再構築) / modification(修正・調整) / integration(統合・判断) / execution(実装・演奏) から選んでください。',
+    '例:「rikuがサビメロを0から作った」→"creation"。「tadaがrikuのコード案を元にサビを全面的に作り直した」→"development"。判断できない場合は必ず空文字""にし、推測で埋めないでください。contributionModeが空でも問題ありません。uncertainFieldsへ追加する必要もありません。',
     '不明または曖昧な項目名をuncertainFields配列に入れてください。最大20件です。',
-    'JSONのみを返してください。形式: {"logs":[{"person":"tada|riku|","type":"...","name":"...","count":1,"scope":3,"effort":3,"details":"...","uncertainFields":["担当","貢献範囲"]}]}',
+    'JSONのみを返してください。形式: {"logs":[{"person":"tada|riku|","type":"...","name":"...","count":1,"scope":3,"effort":3,"contributionMode":"","details":"...","uncertainFields":["担当","貢献範囲"]}]}',
     `案件情報: ${JSON.stringify(payload.project || {})}`,
     `作業報告: ${text}`
   ].join('\n');
@@ -385,6 +410,7 @@ function parseNarrative_(payload) {
       count: Math.max(1, Math.round(Number(log.count) || 1)),
       scope: level_(log.scope, 3),
       effort: level_(log.effort, 3),
+      contributionMode: contributionMode_(log.contributionMode),
       details: String(log.details || '').slice(0, 1000),
       uncertainFields: uncertain.slice(0, 8)
     };
@@ -566,9 +592,21 @@ function normalizeCategoryWeights_(weights) {
 
 function calculateBetaScores_(analysis) {
   const categoryWeights = Object.fromEntries((analysis.categoryWeights || []).map(item => [item.category, Number(item.weight) || 0]));
-  const eligibleElements = (analysis.elements || []).map(element => ({
+  // confidenceが低い評価は中立値3のままフルスコア加算されないよう、計算対象から除外する。
+  const excludedForConfidence = [];
+  const eligibleElements = (analysis.elements || []).filter(element => {
+    if (confidence_(element.confidence) >= MIN_AXIS_CONFIDENCE) return true;
+    excludedForConfidence.push(`要素: ${element.name}`);
+    return false;
+  }).map(element => ({
     ...element,
-    contributors: (element.contributors || []).filter(contributor => Number(contributor.adoptionScore) > 0)
+    contributors: (element.contributors || []).filter(contributor => {
+      if (confidence_(contributor.confidence) < MIN_AXIS_CONFIDENCE) {
+        excludedForConfidence.push(`${element.name}: ${contributor.person}`);
+        return false;
+      }
+      return Number(contributor.adoptionScore) > 0;
+    })
   })).filter(element => element.contributors.length > 0);
   const categories = [...new Set(eligibleElements.map(element => element.category))];
   let tadaPoints = 0;
@@ -598,7 +636,10 @@ function calculateBetaScores_(analysis) {
     categoryBreakdown.push({ category: category, weight: categoryWeights[category] || 0, tadaPoints: categoryTada, rikuPoints: categoryRiku });
   });
   const total = tadaPoints + rikuPoints;
-  const tadaPercent = total > 0 ? tadaPoints / total * 100 : 50;
+  // 十分な比較材料が残らない場合は「判定保留」とし、50:50を作らない。
+  const contributorsLeft = [...new Set(eligibleElements.reduce((names, element) => names.concat(element.contributors.map(c => c.person)), []))];
+  const available = eligibleElements.length > 0 && total > 0 && contributorsLeft.length > 0;
+  const tadaPercent = available ? tadaPoints / total * 100 : null;
   const reviewItems = [];
   (analysis.categoryWeights || []).forEach(item => {
     if (Number(item.confidence) < 0.7 || !String(item.reason || '').trim()) reviewItems.push(`カテゴリ: ${item.category}`);
@@ -610,8 +651,11 @@ function calculateBetaScores_(analysis) {
     });
   });
   return {
+    available: available,
     tadaPercent: tadaPercent,
-    rikuPercent: 100 - tadaPercent,
+    rikuPercent: available ? 100 - tadaPercent : null,
+    usedElementCount: eligibleElements.length,
+    excludedForConfidence: [...new Set(excludedForConfidence)].slice(0, 30),
     categoryBreakdown: categoryBreakdown,
     needsReviewCount: reviewItems.length,
     reviewItems: reviewItems.slice(0, 30)
@@ -629,13 +673,33 @@ function analyzeCombined_(payload) {
     throw new Error('分析する制作ログがありません。');
   }
   const project = payload.project || {};
+  // Musical / Agency / Resolution は1回のGeminiリクエストでまとめて取得する。
   const logAnalysis = analyzeProject_(payload);
-  const betaAnalysis = analyzeBeta_({ project: project, logs: payload.logs });
-  const betaTadaPercent = clamp_(Number(betaAnalysis.calculation && betaAnalysis.calculation.tadaPercent), 0, 100, logAnalysis.recommendedA);
-  // 5軸音楽分析(v3)は最終レコメンドの15%に抑え、残り85%を物量・音楽的比重(v2)に均等配分する。
-  const recommendedA = Number(logAnalysis.quantityA) * 0.425 + Number(logAnalysis.musicalA) * 0.425 + betaTadaPercent * 0.15;
+  let betaAnalysis = null;
+  try {
+    betaAnalysis = analyzeBeta_({ project: project, logs: payload.logs });
+  } catch (error) {
+    // 5軸は補助軸なので、失敗しても判定保留として全体分析は返す。
+    betaAnalysis = null;
+  }
+  const betaCalculation = betaAnalysis && betaAnalysis.calculation;
+  const betaAvailable = !!(betaCalculation && betaCalculation.available);
+  const betaTadaPercent = betaAvailable ? clamp_(Number(betaCalculation.tadaPercent), 0, 100, null) : null;
 
-  if (project.id) {
+  const musicalAvailable = Number.isFinite(Number(logAnalysis.musicalA)) && confidence_(logAnalysis.musicalConfidence) >= MIN_AXIS_CONFIDENCE;
+  const agencyAvailable = Number.isFinite(Number(logAnalysis.creativeAgencyA)) && confidence_(logAnalysis.agencyConfidence) >= MIN_AXIS_CONFIDENCE;
+  const resolutionAvailable = Number.isFinite(Number(logAnalysis.creativeResolutionA)) && confidence_(logAnalysis.resolutionConfidence) >= MIN_AXIS_CONFIDENCE;
+
+  // 利用できない軸はウェイトから外し、残りの軸を100%へ再正規化する。物量は常に利用可能。
+  const combined = combineAxes_([
+    { key: 'quantity', value: Number(logAnalysis.quantityA), weight: ANALYSIS_WEIGHTS.quantity, available: true },
+    { key: 'musical', value: Number(logAnalysis.musicalA), weight: ANALYSIS_WEIGHTS.musical, available: musicalAvailable },
+    { key: 'agency', value: Number(logAnalysis.creativeAgencyA), weight: ANALYSIS_WEIGHTS.agency, available: agencyAvailable },
+    { key: 'resolution', value: Number(logAnalysis.creativeResolutionA), weight: ANALYSIS_WEIGHTS.resolution, available: resolutionAvailable },
+    { key: 'fiveAxis', value: betaTadaPercent, weight: ANALYSIS_WEIGHTS.fiveAxis, available: betaAvailable }
+  ]);
+
+  if (project.id && betaAnalysis) {
     try {
       saveBetaAnalysis_({ projectId: project.id, projectTitle: project.title || 'Untitled Track', status: 'draft', analysis: betaAnalysis });
     } catch (error) {
@@ -644,15 +708,24 @@ function analyzeCombined_(payload) {
   }
 
   return {
-    metricVersion: 4,
+    metricVersion: 5,
+    weights: ANALYSIS_WEIGHTS,
     quantityA: logAnalysis.quantityA,
-    musicalA: logAnalysis.musicalA,
-    logRecommendedA: logAnalysis.recommendedA,
+    musicalA: musicalAvailable ? logAnalysis.musicalA : null,
+    creativeAgencyA: agencyAvailable ? logAnalysis.creativeAgencyA : null,
+    creativeResolutionA: resolutionAvailable ? logAnalysis.creativeResolutionA : null,
     betaTadaPercent: betaTadaPercent,
-    recommendedA: recommendedA,
+    musicalConfidence: confidence_(logAnalysis.musicalConfidence),
+    agencyConfidence: confidence_(logAnalysis.agencyConfidence),
+    resolutionConfidence: confidence_(logAnalysis.resolutionConfidence),
+    recommendedA: combined.value,
+    effectiveWeightTotal: combined.weightTotal,
+    usedAxes: combined.usedAxes,
     quantityDetail: logAnalysis.quantityDetail,
     musicalDetail: logAnalysis.musicalDetail,
-    betaSummary: betaAnalysis.summary,
+    agencyDetail: logAnalysis.agencyDetail,
+    resolutionDetail: logAnalysis.resolutionDetail,
+    betaSummary: betaAnalysis ? betaAnalysis.summary : '',
     beta: betaAnalysis,
     summary: logAnalysis.summary,
     evidence: logAnalysis.evidence,
@@ -676,6 +749,8 @@ function analyzeProject_(payload) {
     count: log.count,
     scope: log.scope,
     effort: log.effort,
+    contributionMode: contributionMode_(log.contributionMode),
+    contributionModeLabel: CONTRIBUTION_MODES[contributionMode_(log.contributionMode)] || '',
     details: log.details
   }));
   const prompt = [
@@ -685,8 +760,18 @@ function analyzeProject_(payload) {
     'tadaの音楽的比重を0〜100のtadaMusicalPercentで返してください。証拠はログに書かれた事実だけを使い、推測しないでください。',
     '物量の割合はシステムが本数・貢献範囲・制作負荷から算出済みです。割合を変更せず、quantityCommentには両者の物量差とその主な理由を、ログに出てくる具体的な作業名・本数・貢献範囲(1〜5)・制作負荷(1〜5)の値を複数挙げながら3〜5文程度で具体的に説明してください。抽象的な言い回しは避け、どのログがどれだけ物量に効いたかが分かるようにしてください。',
     'musicalDetailには、tadaとrikuそれぞれのどの作業が完成曲の音楽的な骨格(メロディー・構成・モチーフなど)にどの程度影響したかを、作業名とカテゴリに触れながら3〜5文程度で具体的に説明してください。',
-    'summaryには、物量と音楽的比重の両方を踏まえた総合的な所見を3〜4文程度でまとめてください。',
-    'JSONのみを返してください。形式: {"tadaMusicalPercent":number,"quantityComment":string,"summary":string,"evidence":[string],"musicalDetail":string}',
+    '',
+    '同じ制作ログから、さらに2つの軸を評価してください。',
+    '【Creative Agency / 創作主体性】その音楽要素に対してどの程度主体的な創作を行ったかを見ます。1=実装・再現・微調整、2=小規模な修正・追加、3=独自の発展・新規要素追加、4=大幅な再構築・創造的展開、5=核となる原案・0→1の創作。',
+    'Agencyの強い根拠: 0から作った、考案した、原案を作った、新しいメロディー/コードを書いた、全面再構築した、元案から大幅に展開した。弱い根拠: 打ち込んだ、録音した、コピーした、微調整した、音量を直した、決まった内容を再現した。',
+    'Agencyでは「作業時間」「本数」「制作負荷」「演奏技術の上手さ」を根拠にしてはいけません。それらは物量側で評価済みです。tadaのAgency割合を0〜100のtadaAgencyPercentで返してください。',
+    '【Creative Resolution / 完成・収束寄与】その人の作業や判断で曲がどれだけ完成形へ前進したかを見ます。複数案の統合、構成の整理、不要部分の削除、サビの成立、コードとメロディーの矛盾解決、他者素材の組み合わせ、曲全体の方向決定などを拾います。1=自分の担当部分を処理しただけ、5=楽曲全体に関わる重要な判断・収束。',
+    '単に大量に作ったことをResolutionの加点理由にしてはいけません。スケジュール管理やプロジェクト管理も対象外です。tadaのResolution割合を0〜100のtadaResolutionPercentで返してください。',
+    'ログのcontributionMode(関わり方)は任意入力です。設定されていれば有力な手がかりとして使い、空欄でもdetailsから明確に読み取れる場合だけ判断してください。読み取れない場合は推測せず、該当軸のconfidenceを0.69以下にしてください。過去ログの修正をユーザーへ要求する文言は書かないでください。',
+    'musicalConfidence / agencyConfidence / resolutionConfidence を0〜1で返してください。ログに明確な根拠がある場合だけ0.70以上にし、根拠が乏しい場合は必ず0.69以下にしてください。低confidenceの軸は最終計算から除外されます。',
+    'agencyDetail / resolutionDetail には、それぞれの判断根拠をログの具体的な作業名を挙げながら2〜4文で書いてください。',
+    'summaryには、物量・音楽的比重・創作主体性・完成寄与を踏まえた総合的な所見を3〜4文程度でまとめてください。割合の正解を決めるのではなく、話し合いの材料を示す姿勢で書いてください。',
+    'JSONのみを返してください。形式: {"tadaMusicalPercent":number,"tadaAgencyPercent":number,"tadaResolutionPercent":number,"musicalConfidence":number,"agencyConfidence":number,"resolutionConfidence":number,"quantityComment":string,"musicalDetail":string,"agencyDetail":string,"resolutionDetail":string,"summary":string,"evidence":[string]}',
     `案件: ${JSON.stringify(payload.project || {})}`,
     `物量集計: ${JSON.stringify({ quantityTadaPercent: baseline.quantityA, detail: baseline.quantityDetail, evidence: baseline.evidence })}`,
     `制作ログ: ${JSON.stringify(namedLogs)}`
@@ -713,14 +798,23 @@ function analyzeProject_(payload) {
   if (!text) throw new Error('Gemini API returned no analysis.');
   const parsed = JSON.parse(extractJsonObject_(text));
   const quantityA = clamp_(Number(baseline.quantityA), 0, 100, 50);
-  const musicalA = clamp_(Number(parsed.tadaMusicalPercent), 0, 100, 50);
+  // 値が返らなかった軸はnullのまま（判定保留）とし、中立値50を作らない。
+  const musicalA = clamp_(Number(parsed.tadaMusicalPercent), 0, 100, null);
+  const agencyA = clamp_(Number(parsed.tadaAgencyPercent), 0, 100, null);
+  const resolutionA = clamp_(Number(parsed.tadaResolutionPercent), 0, 100, null);
   return {
-    metricVersion: 2,
+    metricVersion: 5,
     quantityA: quantityA,
     musicalA: musicalA,
-    recommendedA: quantityA * 0.4 + musicalA * 0.6,
+    creativeAgencyA: agencyA,
+    creativeResolutionA: resolutionA,
+    musicalConfidence: confidence_(parsed.musicalConfidence),
+    agencyConfidence: confidence_(parsed.agencyConfidence),
+    resolutionConfidence: confidence_(parsed.resolutionConfidence),
     quantityDetail: parsed.quantityComment || baseline.quantityDetail || '本数・貢献範囲・制作負荷から機械算出',
     musicalDetail: parsed.musicalDetail || '制作ログの役割と採用範囲から評価',
+    agencyDetail: parsed.agencyDetail || '',
+    resolutionDetail: parsed.resolutionDetail || '',
     summary: parsed.summary || '',
     evidence: Array.isArray(parsed.evidence) ? parsed.evidence.slice(0, 6) : [],
     model: model
@@ -754,6 +848,28 @@ function extractJsonObject_(text) {
 function level_(value, fallback) {
   const level = Math.round(Number(value));
   return Number.isFinite(level) && level >= 1 && level <= 5 ? level : fallback;
+}
+
+// 未設定・未知の値は空文字（未選択）として扱う。古いログには列自体が無い。
+function contributionMode_(value) {
+  const mode = String(value == null ? '' : value).trim();
+  return Object.prototype.hasOwnProperty.call(CONTRIBUTION_MODES, mode) ? mode : '';
+}
+
+/**
+ * 利用可能な軸だけでウェイトを再正規化する汎用関数。
+ * axes: [{ value:number, weight:number, available:boolean }]
+ */
+function combineAxes_(axes) {
+  const usable = axes.filter(axis => axis.available && Number.isFinite(Number(axis.value)));
+  const weightTotal = usable.reduce((sum, axis) => sum + Number(axis.weight || 0), 0);
+  if (!usable.length || weightTotal <= 0) return { value: 50, weightTotal: 0, usedAxes: [] };
+  const value = usable.reduce((sum, axis) => sum + Number(axis.value) * Number(axis.weight), 0) / weightTotal;
+  return {
+    value: clamp_(value, 0, 100, 50),
+    weightTotal: weightTotal,
+    usedAxes: usable.map(axis => axis.key)
+  };
 }
 
 function clamp_(value, minimum, maximum, fallback) {
