@@ -56,6 +56,9 @@
     const LAST_REMOTE_SYNC_KEY = 'splitlab_last_remote_sync_v1';
     const SYNC_SCHEMA_KEY = 'splitlab_sync_schema';
     const SYNC_SCHEMA_VERSION = 'delta-v1';
+    // Bump to force every client to do one full fetch (see the backfill note below).
+    const ANALYSIS_BACKFILL_KEY = 'splitlab_analysis_backfill';
+    const ANALYSIS_BACKFILL_VERSION = 'v1';
     // Analyses produced by a superseded metric formula are discarded on load so
     // stale numbers never resurface. Keep this at or below the lowest version
     // still in use: analyzeCombined_ returns 4, the local calculation returns 2.
@@ -68,6 +71,18 @@
       lastRemoteSyncAt = '';
       persistSyncState();
       localStorage.setItem(SYNC_SCHEMA_KEY, SYNC_SCHEMA_VERSION);
+    }
+    // One-time repair: analyses written to the sheet before the load-time guard was
+    // fixed are stranded there, because syncDelta only returns projects whose
+    // updatedAt is newer than the last sync — so they are never sent down again and
+    // reloading cannot help. Clearing lastRemoteSyncAt forces one full fetch that
+    // pulls them back. Deliberately does NOT mark projects dirty (unlike the schema
+    // migration above): dirty local copies win over remote on a full sync, which
+    // would push the missing analyses back over the good rows in the sheet.
+    if (localStorage.getItem(ANALYSIS_BACKFILL_KEY) !== ANALYSIS_BACKFILL_VERSION) {
+      lastRemoteSyncAt = '';
+      persistSyncState();
+      localStorage.setItem(ANALYSIS_BACKFILL_KEY, ANALYSIS_BACKFILL_VERSION);
     }
     let activeProjectId = null;
     let saveTimer;
@@ -418,7 +433,10 @@
       };
     }
 
-    function renderAnalysis(result) {
+    // `persist` must only be set when `result` is a genuine analysis result. Rendering a
+    // locally computed placeholder must never write it into project.analysis: that value
+    // is synced, so it would overwrite the real AI analysis stored in the sheet.
+    function renderAnalysis(result, { persist = false } = {}) {
       if (!result) return;
       const usePersonNames = value => String(value || '')
         .replace(/Person\s*A/gi, 'tada')
@@ -454,7 +472,7 @@
       document.getElementById('analysis-source').textContent = result.source || 'GOOGLE AI';
       document.getElementById('beta-detail-btn').disabled = !hasBeta;
       const project = getActiveProject();
-      if (project) project.analysis = { ...result, quantityA, musicalA, betaTadaPercent, recommendedA };
+      if (project && persist) project.analysis = { ...result, quantityA, musicalA, betaTadaPercent, recommendedA };
     }
 
     function renderBetaDetailModal() {
@@ -814,7 +832,7 @@
           if (result.error === 'Unsupported action.') throw new Error('Apps Scriptが旧バージョンです。最新のCode.gsを新しいバージョンとして再デプロイすると5軸音楽分析も実行されます。');
           throw new Error(result.error || '分析に失敗しました。');
         }
-        renderAnalysis({ ...result.analysis, source: 'GOOGLE GEMINI' });
+        renderAnalysis({ ...result.analysis, source: 'GOOGLE GEMINI' }, { persist: true });
         scheduleProjectSave();
         showToast('Google AIによるログ分析が完了しました（5軸音楽分析を含む）');
       } catch (error) {
@@ -909,7 +927,14 @@
 
       if (full) {
         localById.forEach((localProject, projectId) => {
-          if (dirtyProjectIds.has(projectId) && !deletedIds.has(projectId)) nextById.set(projectId, localProject);
+          if (!dirtyProjectIds.has(projectId) || deletedIds.has(projectId)) return;
+          // A dirty local copy wins so unsynced edits are not lost, but it must not
+          // drag the analysis back to nothing: keep the remote one when it has an
+          // analysis and the local copy does not.
+          const remote = nextById.get(projectId);
+          nextById.set(projectId, remote && remote.analysis && !localProject.analysis
+            ? { ...localProject, analysis: remote.analysis }
+            : localProject);
         });
       }
       deletedIds.forEach(projectId => {
@@ -979,6 +1004,15 @@
         persistSyncState();
         persistProjects();
         if (receivedChanges) renderDashboard();
+        // The open project holds its own rendered copy, so refresh it too — otherwise
+        // an analysis that just arrived only appears after navigating away and back.
+        if (receivedChanges && activeProjectId) {
+          const refreshed = getActiveProject();
+          if (refreshed) {
+            renderProductionLogs();
+            if (refreshed.analysis) renderAnalysis(refreshed.analysis);
+          }
+        }
         if (full) finishFullSyncProgress(true);
         if (!silent) showToast(full ? `${projects.length}件を全件取得しました` : `${remoteProjects.length}件の差分を同期しました`);
         setSyncStatus('synced');
