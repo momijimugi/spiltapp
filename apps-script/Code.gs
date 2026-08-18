@@ -375,7 +375,7 @@ function parseNarrative_(payload) {
   const geminiResponse = JSON.parse(responseBody);
   const responseText = geminiResponse.candidates && geminiResponse.candidates[0] && geminiResponse.candidates[0].content.parts[0].text;
   if (!responseText) throw new Error('Gemini API returned no log candidates.');
-  const parsed = JSON.parse(responseText);
+  const parsed = JSON.parse(extractJsonObject_(responseText));
   const logs = Array.isArray(parsed.logs) ? parsed.logs.slice(0, 20) : [];
   return logs.map(log => {
     const uncertain = Array.isArray(log.uncertainFields) ? log.uncertainFields.map(String) : [];
@@ -469,7 +469,7 @@ function analyzeBeta_(payload) {
   const geminiResponse = JSON.parse(responseBody);
   const responseText = geminiResponse.candidates && geminiResponse.candidates[0] && geminiResponse.candidates[0].content.parts[0].text;
   if (!responseText) throw new Error('Gemini API returned no beta analysis.');
-  const normalized = normalizeBetaAnalysis_(JSON.parse(responseText), model);
+  const normalized = normalizeBetaAnalysis_(JSON.parse(extractJsonObject_(responseText)), model);
   normalized.calculation = calculateBetaScores_(normalized);
   return normalized;
 }
@@ -695,7 +695,7 @@ function analyzeProject_(payload) {
   const geminiResponse = JSON.parse(responseBody);
   const text = geminiResponse.candidates && geminiResponse.candidates[0] && geminiResponse.candidates[0].content.parts[0].text;
   if (!text) throw new Error('Gemini API returned no analysis.');
-  const parsed = JSON.parse(text);
+  const parsed = JSON.parse(extractJsonObject_(text));
   const quantityA = clamp_(Number(baseline.quantityA), 0, 100, 50);
   const musicalA = clamp_(Number(parsed.tadaMusicalPercent), 0, 100, 50);
   return {
@@ -709,6 +709,30 @@ function analyzeProject_(payload) {
     evidence: Array.isArray(parsed.evidence) ? parsed.evidence.slice(0, 6) : [],
     model: model
   };
+}
+
+function extractJsonObject_(text) {
+  const start = text.indexOf('{');
+  if (start < 0) throw new Error('AIの応答からJSONを取り出せませんでした。');
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+  for (let i = start; i < text.length; i += 1) {
+    const char = text.charAt(i);
+    if (inString) {
+      if (escapeNext) escapeNext = false;
+      else if (char === '\\') escapeNext = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') { inString = true; continue; }
+    if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  throw new Error('AIの応答のJSONが途中で切れています。');
 }
 
 function level_(value, fallback) {
