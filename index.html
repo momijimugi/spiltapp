@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body class="min-h-screen text-slate-100 antialiased selection:bg-acid selection:text-ink">
   <div class="grid-noise min-h-screen">
@@ -28,10 +28,10 @@
             <span id="sync-status-label">未接続</span>
           </button>
           <div class="relative">
-            <button id="workspace-toggle" type="button" class="rounded-full border border-line bg-white/[.015] px-3 py-1.5 text-[11px] font-semibold text-slate-400 transition hover:border-acid/40" aria-haspopup="true" aria-expanded="false" title="接続先を切り替える">
+            <button id="workspace-toggle" type="button" class="workspace-toggle rounded-full border border-line bg-white/[.015] px-3 py-1.5 text-[11px] font-semibold text-slate-400 transition hover:border-acid/40" aria-haspopup="true" aria-expanded="false" title="接続先を切り替える">
               <span id="workspace-current">メイン</span> <span class="text-slate-600">▾</span>
             </button>
-            <div id="workspace-menu" class="absolute right-0 z-40 mt-2 hidden w-60 overflow-hidden rounded-xl border border-line bg-panel py-1 shadow-2xl">
+            <div id="workspace-menu" class="workspace-menu absolute right-0 z-40 mt-2 hidden overflow-hidden rounded-xl border border-line bg-panel py-1 shadow-2xl">
               <div id="workspace-list"></div>
               <div class="my-1 h-px bg-line"></div>
               <button id="workspace-add" type="button" class="block w-full px-3.5 py-2 text-left text-xs text-acid transition hover:bg-white/[.05]">＋ 接続を追加…</button>
@@ -272,6 +272,16 @@
       </div>
     </div>
 
+    <div id="parse-loading-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="parse-loading-title" aria-live="polite">
+      <div class="modal-box w-full max-w-md rounded-2xl border border-line bg-panel p-7 text-center shadow-2xl">
+        <div class="flex justify-center"><div class="analysis-spinner"></div></div>
+        <h2 id="parse-loading-title" class="mt-5 text-sm font-bold text-acid">AIが文章から制作ログを作っています…</h2>
+        <p id="parse-loading-hint" class="mt-2 text-xs leading-6 text-slate-500">文章を読み取って、担当・カテゴリ・本数などに分解しています。</p>
+        <p class="mt-4 font-mono text-2xl font-extrabold"><span id="parse-loading-elapsed">0</span><span class="ml-1 text-sm font-bold text-slate-500">秒</span></p>
+        <p class="mt-3 text-[10px] leading-4 text-slate-600">作成されるログが多いほど時間がかかります。通信の不具合ではありません。<br>画面を閉じずにこのままお待ちください。</p>
+      </div>
+    </div>
+
     <div id="log-drafts-modal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/80 p-5 py-10 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="log-drafts-modal-title">
       <div class="modal-box w-full max-w-3xl rounded-2xl border border-line bg-panel p-6 shadow-2xl sm:p-7">
         <div class="flex items-center justify-between gap-3">
@@ -357,6 +367,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

@@ -1011,6 +1011,38 @@
       modal.classList.remove('flex');
     }
 
+    // 分解にかかる時間はログ件数に比例して伸びるため、経過秒数と状況を出して
+    // 「通信が止まったのでは」と誤解されないようにする。
+    let parseLoadingTimer = null;
+    const PARSE_LOADING_HINTS = [
+      { after: 0, text: '文章を読み取って、担当・カテゴリ・本数などに分解しています。' },
+      { after: 10, text: '作業ごとにログを切り分けています。作業数が多いほど時間がかかります。' },
+      { after: 25, text: '貢献範囲・制作負荷・関わり方を判定しています。もう少しかかります。' },
+      { after: 45, text: 'まだ処理中です。長い文章では1分ほどかかることがあります。' }
+    ];
+
+    function openParseLoading() {
+      const startedAt = Date.now();
+      const elapsedElement = document.getElementById('parse-loading-elapsed');
+      const hintElement = document.getElementById('parse-loading-hint');
+      elapsedElement.textContent = '0';
+      hintElement.textContent = PARSE_LOADING_HINTS[0].text;
+      toggleModal('parse-loading-modal', true);
+      clearInterval(parseLoadingTimer);
+      parseLoadingTimer = setInterval(() => {
+        const seconds = Math.floor((Date.now() - startedAt) / 1000);
+        elapsedElement.textContent = String(seconds);
+        const hint = [...PARSE_LOADING_HINTS].reverse().find(item => seconds >= item.after);
+        if (hint && hintElement.textContent !== hint.text) hintElement.textContent = hint.text;
+      }, 1000);
+    }
+
+    function closeParseLoading() {
+      clearInterval(parseLoadingTimer);
+      parseLoadingTimer = null;
+      toggleModal('parse-loading-modal', false);
+    }
+
     async function parseNarrativeWithGoogle(textareaId = 'log-narrative', buttonId = 'parse-narrative-btn', statusId = 'parse-status') {
       const textarea = document.getElementById(textareaId);
       const text = textarea.value.trim();
@@ -1027,10 +1059,11 @@
       button.textContent = '分解中…';
       status.textContent = '文章から制作ログを抽出しています…';
       status.className = 'min-h-5 text-xs text-slate-500';
+      openParseLoading();
       try {
         const project = getActiveProject();
         const body = new URLSearchParams({ action: 'parseLogs', apiKey: connection.apiKey, payload: JSON.stringify({ text, participants: participantsOf(project), project: { title: project?.title || '', duration: project?.duration || 180 } }) });
-        const result = await postToAppsScript(connection.apiUrl, body);
+        const result = await postToAppsScript(connection.apiUrl, body, { timeoutMs: 90000, timeoutLabel: 'AI分解' });
         if (!result.ok) throw new Error(result.error || '文章を分解できませんでした。');
         parsedLogDrafts = (result.logs || []).map(log => ({
           person: log.person === 'B' ? 'B' : 'A',
@@ -1055,6 +1088,7 @@
         status.textContent = `AI分解エラー: ${error.message}`;
         status.className = 'min-h-5 text-xs text-rose-400';
       } finally {
+        closeParseLoading();
         button.disabled = false;
         button.textContent = 'AIで分解';
       }
