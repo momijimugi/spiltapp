@@ -104,18 +104,83 @@
     // Bump to force every client to do one full fetch (see the backfill note below).
     const ANALYSIS_BACKFILL_KEY = 'splitlab_analysis_backfill';
     const ANALYSIS_BACKFILL_VERSION = 'v3';
+    const API_KEY_STORAGE = 'splitlab_api_key';
+
+    // ---- ワークスペース（接続プロファイル） -------------------------------
+    // 案件データはスプレッドシート単位で完全に分離する。ワークスペースごとに
+    // localStorageのキーへ接尾辞を付けることで、接続先を切り替えても別シートの
+    // 案件が混ざったり、未同期の案件が別シートへ送信されたりしない。
+    // 一覧はこのブラウザのlocalStorageにだけ残り、シートへは同期しない。
+    const WORKSPACES_KEY = 'splitlab_workspaces_v1';
+    const ACTIVE_WORKSPACE_KEY = 'splitlab_active_workspace_v1';
+    const WORKSPACE_MIGRATION_KEY = 'splitlab_workspace_migration';
+
+    function readJson(key, fallback) {
+      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+      catch { return fallback; }
+    }
+
+    function loadWorkspaces() {
+      const stored = readJson(WORKSPACES_KEY, []);
+      return Array.isArray(stored) ? stored.filter(item => item && item.id) : [];
+    }
+
+    function persistWorkspaces() {
+      localStorage.setItem(WORKSPACES_KEY, JSON.stringify(workspaces));
+      localStorage.setItem(ACTIVE_WORKSPACE_KEY, activeWorkspaceId);
+    }
+
+    function makeWorkspace(label, apiUrl) {
+      return {
+        id: `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        label: String(label || '').trim() || '新しい接続',
+        apiUrl: String(apiUrl || '').trim()
+      };
+    }
+
+    function getActiveWorkspace() {
+      return workspaces.find(workspace => workspace.id === activeWorkspaceId) || workspaces[0] || null;
+    }
+
+    // ワークスペースごとの保存キー。既定ワークスペースだけは旧キーをそのまま使い、
+    // 既存ユーザーのデータをコピーせずに引き継ぐ。
+    function workspaceKey(baseKey) {
+      const workspace = getActiveWorkspace();
+      return !workspace || workspace.primary ? baseKey : `${baseKey}::${workspace.id}`;
+    }
+
+    // 初回のみ: 既存の単一接続を「既定ワークスペース」として取り込む。
+    // データは移動させないので、この移行で案件が消えることはない。
+    function migrateToWorkspaces() {
+      if (localStorage.getItem(WORKSPACE_MIGRATION_KEY) === 'v1') return;
+      const existing = loadWorkspaces();
+      if (!existing.length) {
+        const primary = makeWorkspace('メイン', localStorage.getItem(API_URL_KEY) || '');
+        primary.primary = true;
+        localStorage.setItem(WORKSPACES_KEY, JSON.stringify([primary]));
+        localStorage.setItem(ACTIVE_WORKSPACE_KEY, primary.id);
+      }
+      localStorage.setItem(WORKSPACE_MIGRATION_KEY, 'v1');
+    }
+
+    migrateToWorkspaces();
+    let workspaces = loadWorkspaces();
+    let activeWorkspaceId = localStorage.getItem(ACTIVE_WORKSPACE_KEY) || (workspaces[0] && workspaces[0].id) || '';
+    if (!workspaces.some(workspace => workspace.id === activeWorkspaceId)) {
+      activeWorkspaceId = workspaces[0] ? workspaces[0].id : '';
+    }
     // Analyses produced by a superseded metric formula are discarded on load so
     // stale numbers never resurface. The 5-axis model (metricVersion 5) replaced the
     // 42.5/42.5/15 formula, so anything older must not reach the new UI.
     const MIN_ANALYSIS_METRIC_VERSION = 6;
     let projects = loadProjects();
     let dirtyProjectIds = loadDirtyProjectIds();
-    let lastRemoteSyncAt = localStorage.getItem(LAST_REMOTE_SYNC_KEY) || '';
-    if (localStorage.getItem(SYNC_SCHEMA_KEY) !== SYNC_SCHEMA_VERSION) {
+    let lastRemoteSyncAt = localStorage.getItem(workspaceKey(LAST_REMOTE_SYNC_KEY)) || '';
+    if (localStorage.getItem(workspaceKey(SYNC_SCHEMA_KEY)) !== SYNC_SCHEMA_VERSION) {
       projects.forEach(project => dirtyProjectIds.add(project.id));
       lastRemoteSyncAt = '';
       persistSyncState();
-      localStorage.setItem(SYNC_SCHEMA_KEY, SYNC_SCHEMA_VERSION);
+      localStorage.setItem(workspaceKey(SYNC_SCHEMA_KEY), SYNC_SCHEMA_VERSION);
     }
     // One-time repair: analyses written to the sheet before the load-time guard was
     // fixed are stranded there, because syncDelta only returns projects whose
@@ -124,10 +189,10 @@
     // pulls them back. Deliberately does NOT mark projects dirty (unlike the schema
     // migration above): dirty local copies win over remote on a full sync, which
     // would push the missing analyses back over the good rows in the sheet.
-    if (localStorage.getItem(ANALYSIS_BACKFILL_KEY) !== ANALYSIS_BACKFILL_VERSION) {
+    if (localStorage.getItem(workspaceKey(ANALYSIS_BACKFILL_KEY)) !== ANALYSIS_BACKFILL_VERSION) {
       lastRemoteSyncAt = '';
       persistSyncState();
-      localStorage.setItem(ANALYSIS_BACKFILL_KEY, ANALYSIS_BACKFILL_VERSION);
+      localStorage.setItem(workspaceKey(ANALYSIS_BACKFILL_KEY), ANALYSIS_BACKFILL_VERSION);
     }
     let activeProjectId = null;
     let saveTimer;
@@ -136,23 +201,22 @@
     let syncQueued = false;
 
     function loadProjects() {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-      catch { return []; }
+      return readJson(workspaceKey(STORAGE_KEY), []) || [];
     }
 
     function persistProjects() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+      localStorage.setItem(workspaceKey(STORAGE_KEY), JSON.stringify(projects));
     }
 
     function loadDirtyProjectIds() {
-      try { return new Set(JSON.parse(localStorage.getItem(DIRTY_PROJECTS_KEY)) || []); }
-      catch { return new Set(); }
+      const stored = readJson(workspaceKey(DIRTY_PROJECTS_KEY), []);
+      return new Set(Array.isArray(stored) ? stored : []);
     }
 
     function persistSyncState() {
-      localStorage.setItem(DIRTY_PROJECTS_KEY, JSON.stringify([...dirtyProjectIds]));
-      if (lastRemoteSyncAt) localStorage.setItem(LAST_REMOTE_SYNC_KEY, lastRemoteSyncAt);
-      else localStorage.removeItem(LAST_REMOTE_SYNC_KEY);
+      localStorage.setItem(workspaceKey(DIRTY_PROJECTS_KEY), JSON.stringify([...dirtyProjectIds]));
+      if (lastRemoteSyncAt) localStorage.setItem(workspaceKey(LAST_REMOTE_SYNC_KEY), lastRemoteSyncAt);
+      else localStorage.removeItem(workspaceKey(LAST_REMOTE_SYNC_KEY));
     }
 
     function markProjectDirty(projectId) {
@@ -805,10 +869,11 @@
         showToast('Google連携はGitHub PagesまたはローカルHTTPサーバーで利用してください');
         return Promise.resolve(null);
       }
-      const savedUrl = localStorage.getItem(API_URL_KEY) || '';
-      const sessionKey = sessionStorage.getItem('splitlab_api_key') || '';
+      const savedUrl = getWorkspaceApiUrl();
+      const sessionKey = getWorkspaceApiKey();
       if (!force && savedUrl && sessionKey) return Promise.resolve({ apiUrl: savedUrl, apiKey: sessionKey });
       document.getElementById('api-url-input').value = savedUrl;
+      document.getElementById('api-label-input').value = getActiveWorkspace()?.label || '';
       document.getElementById('api-key-input').value = '';
       document.getElementById('api-modal-error').classList.add('hidden');
       const copy = gate ? API_MODAL_COPY.gate : API_MODAL_COPY.normal;
@@ -835,7 +900,7 @@
     let pendingDeleteProjectId = null;
 
     function openDeleteModal(project) {
-      const apiUrl = localStorage.getItem(API_URL_KEY) || '';
+      const apiUrl = getWorkspaceApiUrl();
       if (!apiUrl) {
         showToast('先に「自動同期」からGoogle Sheets接続を設定してください');
         return;
@@ -1029,10 +1094,37 @@
       }
     }
 
+    function getWorkspaceApiUrl() {
+      const workspace = getActiveWorkspace();
+      if (!workspace) return '';
+      // 既定ワークスペースは旧キーを正とし、以前の設定をそのまま引き継ぐ。
+      if (workspace.primary && !workspace.apiUrl) return localStorage.getItem(API_URL_KEY) || '';
+      return workspace.apiUrl || '';
+    }
+
+    function setWorkspaceApiUrl(apiUrl) {
+      const workspace = getActiveWorkspace();
+      if (!workspace) return;
+      workspace.apiUrl = apiUrl;
+      persistWorkspaces();
+      // 旧キーも更新しておくと、古いタブが開いていても設定が食い違わない。
+      if (workspace.primary) localStorage.setItem(API_URL_KEY, apiUrl);
+    }
+
+    // 接続キーはこれまで通りsessionStorage（タブを閉じると消える）。
+    function apiKeyStorageKey() {
+      const workspace = getActiveWorkspace();
+      return !workspace || workspace.primary ? API_KEY_STORAGE : `${API_KEY_STORAGE}::${workspace.id}`;
+    }
+
+    function getWorkspaceApiKey() {
+      return sessionStorage.getItem(apiKeyStorageKey()) || '';
+    }
+
     function getStoredApiConnection() {
       if (location.protocol === 'file:') return null;
-      const apiUrl = localStorage.getItem(API_URL_KEY) || '';
-      const apiKey = sessionStorage.getItem('splitlab_api_key') || '';
+      const apiUrl = getWorkspaceApiUrl();
+      const apiKey = getWorkspaceApiKey();
       return apiUrl && apiKey ? { apiUrl, apiKey } : null;
     }
 
@@ -1047,6 +1139,58 @@
       document.getElementById('sync-status-dot').className = `sync-dot ${meta.dotClass}`;
       document.getElementById('sync-status-label').textContent = detail || meta.text;
     }
+    // ---- ワークスペースUI ---------------------------------------------------
+    function renderWorkspaceSwitcher() {
+      const current = getActiveWorkspace();
+      document.getElementById('workspace-current').textContent = current ? current.label : '接続なし';
+      document.getElementById('workspace-list').innerHTML = workspaces.map(workspace => {
+        const active = workspace.id === activeWorkspaceId;
+        return `<button type="button" data-workspace="${escapeHtml(workspace.id)}" class="flex w-full items-center justify-between gap-2 px-3.5 py-2 text-left text-xs transition hover:bg-white/[.05] ${active ? 'text-acid' : 'text-slate-300'}">
+          <span class="truncate">${escapeHtml(workspace.label)}</span>
+          ${active ? '<span class="shrink-0 font-mono text-[10px]">✓</span>' : ''}
+        </button>`;
+      }).join('');
+      document.getElementById('workspace-remove').classList.toggle('hidden', workspaces.length < 2);
+    }
+
+    function toggleWorkspaceMenu(show) {
+      const menu = document.getElementById('workspace-menu');
+      const open = show === undefined ? menu.classList.contains('hidden') : show;
+      menu.classList.toggle('hidden', !open);
+      document.getElementById('workspace-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    // 未同期の案件を別シートへ持ち込まないよう、切り替え前に必ず確認する。
+    function switchWorkspace(workspaceId, options = {}) {
+      if (!workspaceId || workspaceId === activeWorkspaceId) { toggleWorkspaceMenu(false); return; }
+      const activeProject = getActiveProject();
+      if (activeProject) {
+        captureProjectFields(activeProject);
+        persistProjects();
+      }
+      if (!options.skipDirtyCheck && dirtyProjectIds.size) {
+        const proceed = confirm(`未同期の案件が${dirtyProjectIds.size}件あります。\n切り替えても消えませんが、この接続に戻ってから同期してください。\n切り替えますか？`);
+        if (!proceed) { toggleWorkspaceMenu(false); return; }
+      }
+      clearTimeout(saveTimer);
+      clearTimeout(autoSyncTimer);
+      activeWorkspaceId = workspaceId;
+      persistWorkspaces();
+      // 保存キーが切り替わるので、状態はすべて読み直す。
+      projects = loadProjects().map(normalizeProject);
+      dirtyProjectIds = loadDirtyProjectIds();
+      lastRemoteSyncAt = localStorage.getItem(workspaceKey(LAST_REMOTE_SYNC_KEY)) || '';
+      activeProjectId = null;
+      toggleWorkspaceMenu(false);
+      renderWorkspaceSwitcher();
+      showDashboard();
+      refreshSyncStatus();
+      const workspace = getActiveWorkspace();
+      showToast(`「${workspace ? workspace.label : ''}」に切り替えました`);
+      if (getStoredApiConnection()) syncWithSheets({ silent: true });
+      else requestApiConnection({ force: true }).then(connection => { if (connection) syncWithSheets(); });
+    }
+
     function refreshSyncStatus() {
       setSyncStatus(getStoredApiConnection() ? 'synced' : 'disconnected');
     }
@@ -1419,8 +1563,27 @@
         error.classList.remove('hidden');
         return;
       }
-      localStorage.setItem(API_URL_KEY, apiUrl);
-      sessionStorage.setItem('splitlab_api_key', apiKey);
+      const label = document.getElementById('api-label-input').value.trim();
+      const workspace = getActiveWorkspace();
+      // 同じURLが別ワークスペースに登録済みなら、新規追加せずそちらへ切り替える。
+      const duplicate = workspaces.find(item => item.id !== activeWorkspaceId && item.apiUrl === apiUrl);
+      if (duplicate) {
+        sessionStorage.setItem(`${API_KEY_STORAGE}::${duplicate.id}`, apiKey);
+        // 追加したばかりの空ワークスペースは残さない。
+        if (workspace && !workspace.primary && !workspace.apiUrl && !projects.length) {
+          workspaces = workspaces.filter(item => item.id !== workspace.id);
+        }
+        closeApiModal(null);
+        switchWorkspace(duplicate.id, { skipDirtyCheck: true });
+        return;
+      }
+      if (workspace && label) {
+        workspace.label = label;
+        persistWorkspaces();
+      }
+      setWorkspaceApiUrl(apiUrl);
+      sessionStorage.setItem(apiKeyStorageKey(), apiKey);
+      renderWorkspaceSwitcher();
       refreshSyncStatus();
       closeApiModal({ apiUrl, apiKey });
     });
@@ -1431,6 +1594,48 @@
     document.getElementById('theme-toggle').textContent = document.documentElement.dataset.theme === 'dark' ? '☀️' : '🌙';
     document.getElementById('theme-toggle').addEventListener('click', () => {
       applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+    });
+    renderWorkspaceSwitcher();
+    document.getElementById('workspace-toggle').addEventListener('click', event => {
+      event.stopPropagation();
+      toggleWorkspaceMenu();
+    });
+    document.addEventListener('click', event => {
+      if (!event.target.closest('#workspace-menu, #workspace-toggle')) toggleWorkspaceMenu(false);
+    });
+    document.getElementById('workspace-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-workspace]');
+      if (button) switchWorkspace(button.dataset.workspace);
+    });
+    document.getElementById('workspace-add').addEventListener('click', () => {
+      toggleWorkspaceMenu(false);
+      const workspace = makeWorkspace('新しい接続', '');
+      workspaces.push(workspace);
+      // 空のワークスペースへ切り替えてから接続情報を入力させる。
+      switchWorkspace(workspace.id, { skipDirtyCheck: false });
+    });
+    document.getElementById('workspace-rename').addEventListener('click', () => {
+      const workspace = getActiveWorkspace();
+      if (!workspace) return;
+      const label = prompt('この接続の名前', workspace.label);
+      if (label === null) return;
+      workspace.label = label.trim().slice(0, 24) || workspace.label;
+      persistWorkspaces();
+      renderWorkspaceSwitcher();
+      toggleWorkspaceMenu(false);
+    });
+    document.getElementById('workspace-remove').addEventListener('click', () => {
+      const workspace = getActiveWorkspace();
+      if (!workspace || workspaces.length < 2) return;
+      if (!confirm(`「${workspace.label}」を一覧から削除します。\nスプレッドシート側のデータは消えません。この端末に残っているこの接続の案件データは消えます。\n削除しますか？`)) return;
+      [STORAGE_KEY, DIRTY_PROJECTS_KEY, LAST_REMOTE_SYNC_KEY, SYNC_SCHEMA_KEY, ANALYSIS_BACKFILL_KEY]
+        .forEach(baseKey => localStorage.removeItem(workspaceKey(baseKey)));
+      sessionStorage.removeItem(apiKeyStorageKey());
+      const removedId = workspace.id;
+      workspaces = workspaces.filter(item => item.id !== removedId);
+      activeWorkspaceId = '';
+      persistWorkspaces();
+      switchWorkspace(workspaces[0].id, { skipDirtyCheck: true });
     });
     document.getElementById('sync-status-pill').addEventListener('click', async () => {
       const connection = await requestApiConnection({ force: true });
@@ -1478,7 +1683,7 @@
     document.getElementById('delete-form').addEventListener('submit', async event => {
       event.preventDefault();
       const projectId = pendingDeleteProjectId;
-      const apiUrl = localStorage.getItem(API_URL_KEY) || '';
+      const apiUrl = getWorkspaceApiUrl();
       const apiKey = document.getElementById('delete-api-key').value;
       const errorElement = document.getElementById('delete-modal-error');
       const submitButton = document.getElementById('delete-submit');
