@@ -35,7 +35,27 @@
     const taskList = document.getElementById('task-list');
     const allTasks = categories.flatMap(category => category.tasks.map(task => ({ ...task, category: category.name })));
     const maxPoints = allTasks.reduce((sum, task) => sum + task.points, 0);
-    const PERSON_NAMES = { A: 'tada', B: 'riku' };
+    // 参加者は案件ごとに名前を持つ。内部キー(A/B)と表示名を分離しておくことで、
+    // 将来3人以上へ拡張するときもキー配列を増やすだけで済むようにする。
+    const PERSON_KEYS = ['A', 'B'];
+    const DEFAULT_PARTICIPANTS = { A: 'tada', B: 'riku' };
+
+    function normalizeParticipants(source) {
+      const supplied = source && typeof source === 'object' ? source : {};
+      return Object.fromEntries(PERSON_KEYS.map(key => {
+        const name = String(supplied[key] ?? '').trim();
+        return [key, name || DEFAULT_PARTICIPANTS[key]];
+      }));
+    }
+
+    function participantsOf(project) {
+      return normalizeParticipants(project?.participants);
+    }
+
+    function personName(key, project = getActiveProject()) {
+      const participants = participantsOf(project);
+      return participants[key === 'B' ? 'B' : 'A'];
+    }
     const SCOPE_LEVELS = {
       1: { label: 'ワンポイント', description: '単発の差し込み・装飾' },
       2: { label: '1セクション', description: 'Aメロ・サビなど一部の構成' },
@@ -83,11 +103,11 @@
     const SYNC_SCHEMA_VERSION = 'delta-v1';
     // Bump to force every client to do one full fetch (see the backfill note below).
     const ANALYSIS_BACKFILL_KEY = 'splitlab_analysis_backfill';
-    const ANALYSIS_BACKFILL_VERSION = 'v2';
+    const ANALYSIS_BACKFILL_VERSION = 'v3';
     // Analyses produced by a superseded metric formula are discarded on load so
     // stale numbers never resurface. The 5-axis model (metricVersion 5) replaced the
     // 42.5/42.5/15 formula, so anything older must not reach the new UI.
-    const MIN_ANALYSIS_METRIC_VERSION = 5;
+    const MIN_ANALYSIS_METRIC_VERSION = 6;
     let projects = loadProjects();
     let dirtyProjectIds = loadDirtyProjectIds();
     let lastRemoteSyncAt = localStorage.getItem(LAST_REMOTE_SYNC_KEY) || '';
@@ -198,6 +218,7 @@
         duration: 180,
         tasks: defaultTaskState(),
         logs: [],
+        participants: { ...DEFAULT_PARTICIPANTS },
         splitA: 50,
         splitB: 50,
         finalA: 50,
@@ -303,6 +324,8 @@
         status,
         archived,
         archivedAt: project.archivedAt || '',
+        // 参加者名が無い過去案件は従来どおり tada / riku として読み込む。
+        participants: normalizeParticipants(project.participants),
         analysis: Number(project.analysis?.metricVersion) >= MIN_ANALYSIS_METRIC_VERSION ? project.analysis : null,
         tasks: Object.fromEntries(allTasks.map(task => [task.id, { ...defaults[task.id], ...(project.tasks?.[task.id] || {}) }])),
         logs: Array.isArray(project.logs) ? project.logs.map(normalizeLog) : []
@@ -327,6 +350,18 @@
       }, 100);
     }
 
+    // 参加者名は案件ごとに変わるので、静的ラベルもここでまとめて塗り替える。
+    function applyParticipantNames(project) {
+      const names = participantsOf(project);
+      document.querySelectorAll('.participant-name-a, .name-a').forEach(node => { node.textContent = names.A; });
+      document.querySelectorAll('.participant-name-b, .name-b').forEach(node => { node.textContent = names.B; });
+      const narrativePlaceholder = `例：${names.A}がサビのメインメロディーと曲構成を作成。${names.B}はStratのアルペジオを2本、複数セクションに追加。`;
+      ['log-narrative', 'log-narrative-inline'].forEach(id => {
+        const field = document.getElementById(id);
+        if (field) field.placeholder = narrativePlaceholder;
+      });
+    }
+
     function renderProjectHeader(project) {
       if (!project) return;
       document.getElementById('project-header-title').textContent = project.title || 'Untitled Track';
@@ -344,6 +379,11 @@
       project.duration = Math.max(1, Number(document.getElementById('project-duration').value) || 180);
       project.client = document.getElementById('project-client').value.trim();
       project.deadline = document.getElementById('project-deadline').value;
+      project.participants = normalizeParticipants({
+        A: document.getElementById('participant-a').value,
+        B: document.getElementById('participant-b').value
+      });
+      applyParticipantNames(project);
       document.getElementById('song-title').value = project.title;
       project.finalA = Number(document.getElementById('final-slider').value);
       project.splitA = project.finalA;
@@ -361,6 +401,7 @@
     function projectCardMarkup(project, archived = false) {
       const splitA = Number(project.splitA ?? project.finalA ?? 50);
       const splitB = Number(project.splitB ?? (100 - splitA));
+      const names = participantsOf(project);
       return `
         <article class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition hover:bg-white/[.04] sm:flex-nowrap">
           <button type="button" data-open-project="${escapeHtml(project.id)}" class="group flex min-w-0 flex-1 items-center gap-3 text-left">
@@ -371,8 +412,8 @@
             </span>
           </button>
           <div class="flex shrink-0 items-center gap-4 font-mono text-xs">
-            <span class="text-acid">tada ${splitA.toFixed(1)}%</span>
-            <span class="text-violet-300">riku ${splitB.toFixed(1)}%</span>
+            <span class="text-acid">${escapeHtml(names.A)} ${splitA.toFixed(1)}%</span>
+            <span class="text-violet-300">${escapeHtml(names.B)} ${splitB.toFixed(1)}%</span>
             <span class="text-slate-500">${project.logs?.length || 0}件</span>
             <span class="hidden text-slate-500 sm:inline">${escapeHtml(project.deadline || '—')}</span>
             <span class="hidden text-slate-600 md:inline">${project.updatedAt ? new Date(project.updatedAt).toLocaleDateString('ja-JP') : '—'}</span>
@@ -429,6 +470,10 @@
       document.getElementById('project-duration').value = project.duration || 180;
       document.getElementById('project-client').value = project.client || '';
       document.getElementById('project-deadline').value = project.deadline || '';
+      const participants = participantsOf(project);
+      document.getElementById('participant-a').value = participants.A;
+      document.getElementById('participant-b').value = participants.B;
+      applyParticipantNames(project);
       document.getElementById('song-title').value = project.title || '';
       renderProjectHeader(project);
       document.getElementById('final-slider').value = Number(project.finalA ?? project.splitA ?? project.analysis?.recommendedA ?? 50);
@@ -467,6 +512,7 @@
 
     function calculateLocalAnalysis() {
       const logs = getActiveProject()?.logs || [];
+      const names = participantsOf(getActiveProject());
       const totals = { A: { count: 0, scope: 0, effort: 0, musical: 0 }, B: { count: 0, scope: 0, effort: 0, musical: 0 } };
       logs.forEach(rawLog => {
         const log = normalizeLog(rawLog);
@@ -491,17 +537,17 @@
         { key: 'musical', value: musicalA, weight: ANALYSIS_WEIGHTS.musical, available: true }
       ]).value;
       return {
-        metricVersion: 5,
+        metricVersion: 6,
         quantityA,
         musicalA,
         creativeAgencyA: null,
         creativeResolutionA: null,
-        betaTadaPercent: null,
+        betaPercentA: null,
         recommendedA,
         summary: '記録された物量とカテゴリ別の音楽的中心性を分けて集計した基準値です。創作主体性・完成寄与・5軸音楽分析はGoogle AI分析後に算出されます。',
         evidence: [
-          `物量 — tada: ${totals.A.count}本・範囲${totals.A.scope}pt・カロリー${totals.A.effort}pt / riku: ${totals.B.count}本・範囲${totals.B.scope}pt・カロリー${totals.B.effort}pt`,
-          `音楽的比重スコア — tada: ${totals.A.musical} / riku: ${totals.B.musical}`
+          `物量 — ${names.A}: ${totals.A.count}本・範囲${totals.A.scope}pt・カロリー${totals.A.effort}pt / ${names.B}: ${totals.B.count}本・範囲${totals.B.scope}pt・カロリー${totals.B.effort}pt`,
+          `音楽的比重スコア — ${names.A}: ${totals.A.musical} / ${names.B}: ${totals.B.musical}`
         ],
         quantityDetail: '本数・5段階の貢献範囲・制作負荷（カロリー）を同じ比重で集計',
         musicalDetail: 'メロディー・構成・モチーフなど曲の中心性に貢献範囲を加味',
@@ -516,15 +562,16 @@
     // is synced, so it would overwrite the real AI analysis stored in the sheet.
     function renderAnalysis(result, { persist = false } = {}) {
       if (!result) return;
+      const names = participantsOf(getActiveProject());
       const usePersonNames = value => String(value || '')
-        .replace(/Person\s*A/gi, 'tada')
-        .replace(/Person\s*B/gi, 'riku')
-        .replace(/担当\s*A/g, 'tada')
-        .replace(/担当\s*B/g, 'riku')
-        .replace(/\bA(?=[はがのにをへもと、。])/g, 'tada')
-        .replace(/\bB(?=[はがのにをへもと、。])/g, 'riku')
-        .replace(/(^|[\s（(・:：,\/])A(?=$|[\s）)・:：,\/])/g, '$1tada')
-        .replace(/(^|[\s（(・:：,\/])B(?=$|[\s）)・:：,\/])/g, '$1riku');
+        .replace(/Person\s*A/gi, names.A)
+        .replace(/Person\s*B/gi, names.B)
+        .replace(/担当\s*A/g, names.A)
+        .replace(/担当\s*B/g, names.B)
+        .replace(/\bA(?=[はがのにをへもと、。])/g, names.A)
+        .replace(/\bB(?=[はがのにをへもと、。])/g, names.B)
+        .replace(/(^|[\s（(・:：,\/])A(?=$|[\s）)・:：,\/])/g, `$1${names.A}`)
+        .replace(/(^|[\s（(・:：,\/])B(?=$|[\s）)・:：,\/])/g, `$1${names.B}`);
       // 判定不能な軸はnull。50:50を作らず「判定保留」として最終計算からも除外する。
       const axisValue = (value, confidence) => {
         if (value === null || value === undefined || value === '') return null;
@@ -537,11 +584,11 @@
       const musicalA = axisValue(result.musicalA, result.musicalConfidence);
       const agencyA = axisValue(result.creativeAgencyA, result.agencyConfidence);
       const resolutionA = axisValue(result.creativeResolutionA, result.resolutionConfidence);
-      const betaTadaPercent = axisValue(result.betaTadaPercent);
+      const betaPercentA = axisValue(result.betaPercentA ?? result.betaTadaPercent);
 
       const renderAxisCard = (prefix, value, detailText, pendingText) => {
         const pending = value === null;
-        document.getElementById(`${prefix}-score`).textContent = pending ? '判定保留' : `tada ${value.toFixed(0)} / riku ${(100 - value).toFixed(0)}`;
+        document.getElementById(`${prefix}-score`).textContent = pending ? '判定保留' : `${names.A} ${value.toFixed(0)} / ${names.B} ${(100 - value).toFixed(0)}`;
         document.getElementById(`${prefix}-bar-a`).style.width = pending ? '0%' : `${value}%`;
         document.getElementById(`${prefix}-bar-b`).style.width = pending ? '0%' : `${100 - value}%`;
         document.getElementById(`${prefix}-detail`).textContent = pending ? pendingText : usePersonNames(detailText);
@@ -553,7 +600,7 @@
       renderAxisCard('musical', musicalA, result.musicalDetail || '曲の成立への中心性から算出', 'ログの根拠が不足しているため判定を保留しました。最終結果からも除外されています。');
       renderAxisCard('agency', agencyA, result.agencyDetail || '', 'Google AIで分析すると算出されます。根拠が不足している場合は判定保留のままです。');
       renderAxisCard('resolution', resolutionA, result.resolutionDetail || '', 'Google AIで分析すると算出されます。根拠が不足している場合は判定保留のままです。');
-      renderAxisCard('beta', betaTadaPercent, result.betaSummary || '要素ごとの5軸評価から算出しました。', 'Google AIで分析すると算出されます。確信度が不足する評価は除外され、材料が足りない場合は判定保留になります。');
+      renderAxisCard('beta', betaPercentA, result.betaSummary || '要素ごとの5軸評価から算出しました。', 'Google AIで分析すると算出されます。確信度が不足する評価は除外され、材料が足りない場合は判定保留になります。');
 
       // 利用できない軸はウェイトから外し、残りを100%へ再正規化する。
       const combined = combineAxes([
@@ -561,10 +608,10 @@
         { key: 'musical', label: '音楽的比重', value: musicalA, weight: ANALYSIS_WEIGHTS.musical, available: musicalA !== null },
         { key: 'agency', label: '創作主体性', value: agencyA, weight: ANALYSIS_WEIGHTS.agency, available: agencyA !== null },
         { key: 'resolution', label: '完成寄与', value: resolutionA, weight: ANALYSIS_WEIGHTS.resolution, available: resolutionA !== null },
-        { key: 'fiveAxis', label: '5軸', value: betaTadaPercent, weight: ANALYSIS_WEIGHTS.fiveAxis, available: betaTadaPercent !== null }
+        { key: 'fiveAxis', label: '5軸', value: betaPercentA, weight: ANALYSIS_WEIGHTS.fiveAxis, available: betaPercentA !== null }
       ]);
       const recommendedA = result.recommendedA !== null && result.recommendedA !== undefined
-        && Number.isFinite(Number(result.recommendedA)) && Number(result.metricVersion) >= 5
+        && Number.isFinite(Number(result.recommendedA)) && Number(result.metricVersion) >= 6
         ? Math.max(0, Math.min(100, Number(result.recommendedA)))
         : (combined.value ?? quantityA);
       const axisLabels = { quantity: '物量', musical: '音楽的比重', agency: '創作主体性', resolution: '完成寄与', fiveAxis: '5軸' };
@@ -573,24 +620,34 @@
         .map(key => `${axisLabels[key]}${(ANALYSIS_WEIGHTS[key] / weightTotal * 100).toFixed(1)}%`)
         .join(' + ');
       document.getElementById('analysis-formula').textContent = `RECOMMENDATION（${formulaText || '算出不可'}）`;
-      document.getElementById('analysis-recommendation').textContent = `tada ${recommendedA.toFixed(1)}% / riku ${(100 - recommendedA).toFixed(1)}%`;
+      document.getElementById('analysis-recommendation').textContent = `${names.A} ${recommendedA.toFixed(1)}% / ${names.B} ${(100 - recommendedA).toFixed(1)}%`;
       document.getElementById('analysis-summary').textContent = usePersonNames(result.summary || '');
       document.getElementById('analysis-evidence').innerHTML = (result.evidence || []).map(item => `<li>・${escapeHtml(usePersonNames(item))}</li>`).join('');
       document.getElementById('analysis-source').textContent = result.source || 'GOOGLE AI';
-      document.getElementById('beta-detail-btn').disabled = betaTadaPercent === null;
+      document.getElementById('beta-detail-btn').disabled = betaPercentA === null;
       const project = getActiveProject();
       if (project && persist) {
         project.analysis = {
           ...result,
-          metricVersion: 5,
+          metricVersion: 6,
           quantityA,
           musicalA,
           creativeAgencyA: agencyA,
           creativeResolutionA: resolutionA,
-          betaTadaPercent,
+          betaPercentA,
           recommendedA
         };
       }
+    }
+
+    // 5軸分析のpersonは新形式がA/B、旧形式が実名。どちらもキーへ寄せる。
+    function betaPersonKey(person, project = getActiveProject()) {
+      const value = String(person || '').trim();
+      if (value === 'A' || value === 'B') return value;
+      const participants = participantsOf(project);
+      if (value.toLowerCase() === String(participants.B).toLowerCase()) return 'B';
+      if (value.toLowerCase() === String(participants.A).toLowerCase()) return 'A';
+      return value.toLowerCase() === 'riku' ? 'B' : 'A';
     }
 
     function renderBetaDetailModal() {
@@ -612,7 +669,7 @@
       const elementRows = beta.elements.map(element => {
         const contributors = (element.contributors || []).map(c => `
           <div class="rounded-lg border border-line bg-black/20 p-3">
-            <div class="flex items-center justify-between gap-2"><span class="font-mono text-xs font-bold ${c.person === 'riku' ? 'text-violet-300' : 'text-acid'}">${escapeHtml(PERSON_NAMES[c.person === 'riku' ? 'B' : 'A'])} · ${escapeHtml(c.role || '')}</span>${confidenceBadge(c.confidence)}</div>
+            <div class="flex items-center justify-between gap-2"><span class="font-mono text-xs font-bold ${betaPersonKey(c.person) === 'B' ? 'text-violet-300' : 'text-acid'}">${escapeHtml(personName(betaPersonKey(c.person)))} · ${escapeHtml(c.role || '')}</span>${confidenceBadge(c.confidence)}</div>
             <p class="mt-1 font-mono text-[10px] text-slate-500">役割${c.roleScore} ・ 採用度${c.adoptionScore} ・ 代替不可能性${c.irreplaceabilityScore}</p>
             <p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(c.evidence || '')}</p>
           </div>`).join('');
@@ -674,7 +731,7 @@
         summary[person].effort += count * log.effort;
         return summary;
       }, { A: { count: 0, scope: 0, effort: 0 }, B: { count: 0, scope: 0, effort: 0 } });
-      document.getElementById('log-summary').innerHTML = ['A', 'B'].map(person => `<div class="rounded-lg border border-line bg-black/20 px-3 py-2 text-xs leading-4" title="${PERSON_NAMES[person]}：${totals[person].count}本 / 範囲${totals[person].scope}pt / カロリー${totals[person].effort}pt"><span class="font-mono font-bold ${person === 'A' ? 'text-acid' : 'text-violet-300'}">${PERSON_NAMES[person]}</span><span class="ml-2 text-slate-400">${totals[person].count}本 · 範囲${totals[person].scope} · カロリー${totals[person].effort}</span></div>`).join('') + `<div class="rounded-lg border border-line bg-black/20 px-3 py-2 text-xs leading-4"><span class="font-mono font-bold text-slate-400">TOTAL</span><span class="ml-2 text-slate-400">${project.logs.length}ログ</span></div>`;
+      document.getElementById('log-summary').innerHTML = PERSON_KEYS.map(person => `<div class="rounded-lg border border-line bg-black/20 px-3 py-2 text-xs leading-4" title="${escapeHtml(personName(person))}：${totals[person].count}本 / 範囲${totals[person].scope}pt / カロリー${totals[person].effort}pt"><span class="font-mono font-bold ${person === 'A' ? 'text-acid' : 'text-violet-300'}">${escapeHtml(personName(person))}</span><span class="ml-2 text-slate-400">${totals[person].count}本 · 範囲${totals[person].scope} · カロリー${totals[person].effort}</span></div>`).join('') + `<div class="rounded-lg border border-line bg-black/20 px-3 py-2 text-xs leading-4"><span class="font-mono font-bold text-slate-400">TOTAL</span><span class="ml-2 text-slate-400">${project.logs.length}ログ</span></div>`;
       const list = document.getElementById('log-list');
       document.getElementById('empty-logs').classList.toggle('hidden', project.logs.length > 0);
 
@@ -710,7 +767,7 @@
         htmlParts.push(`
           <div data-log-id="${escapeHtml(log.id)}" tabindex="0" title="${escapeHtml(log.details || 'ダブルクリックで編集')}" class="production-log-row flex items-center justify-between gap-4 rounded-xl border border-line bg-white/[.015] px-4 py-3 transition hover:border-slate-600 focus:outline-none focus:ring-1 focus:ring-acid/40">
             <div class="flex min-w-0 flex-1 items-center gap-3.5">
-              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg ${log.person === 'A' ? 'bg-acid/10 text-acid' : 'bg-violet/10 text-violet-300'} font-mono text-xs font-bold">${escapeHtml(PERSON_NAMES[log.person] || log.person)}</span>
+              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg ${log.person === 'A' ? 'bg-acid/10 text-acid' : 'bg-violet/10 text-violet-300'} font-mono text-xs font-bold">${escapeHtml(personName(log.person))}</span>
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="truncate text-sm font-bold text-slate-100">${escapeHtml(log.name)}</p>
@@ -856,7 +913,7 @@
             <input type="checkbox" class="draft-selected mt-1 h-4 w-4 accent-[#c7ff3d]" checked aria-label="このログ候補を登録">
             <div class="min-w-0 flex-1">
               <div class="grid gap-3 sm:grid-cols-[.55fr_1fr_1.6fr]">
-                <label><span class="mb-1 block text-[9px] text-slate-600">担当</span><select class="draft-person w-full rounded-lg border border-line bg-[#0d1016] px-3 py-2 text-xs"><option value="A" ${draft.person === 'A' ? 'selected' : ''}>tada</option><option value="B" ${draft.person === 'B' ? 'selected' : ''}>riku</option></select></label>
+                <label><span class="mb-1 block text-[9px] text-slate-600">担当</span><select class="draft-person w-full rounded-lg border border-line bg-[#0d1016] px-3 py-2 text-xs"><option value="A" ${draft.person === 'A' ? 'selected' : ''}>${escapeHtml(personName('A'))}</option><option value="B" ${draft.person === 'B' ? 'selected' : ''}>${escapeHtml(personName('B'))}</option></select></label>
                 <label><span class="mb-1 block text-[9px] text-slate-600">カテゴリ</span><select class="draft-type w-full rounded-lg border border-line bg-[#0d1016] px-3 py-2 text-xs">${typeOptions}</select></label>
                 <label><span class="mb-1 block text-[9px] text-slate-600">内容</span><input class="draft-name w-full rounded-lg border border-line bg-black/30 px-3 py-2 text-xs" value="${escapeHtml(draft.name)}"></label>
               </div>
@@ -907,7 +964,7 @@
       status.className = 'min-h-5 text-xs text-slate-500';
       try {
         const project = getActiveProject();
-        const body = new URLSearchParams({ action: 'parseLogs', apiKey: connection.apiKey, payload: JSON.stringify({ text, project: { title: project?.title || '', duration: project?.duration || 180 } }) });
+        const body = new URLSearchParams({ action: 'parseLogs', apiKey: connection.apiKey, payload: JSON.stringify({ text, participants: participantsOf(project), project: { title: project?.title || '', duration: project?.duration || 180 } }) });
         const result = await postToAppsScript(connection.apiUrl, body);
         if (!result.ok) throw new Error(result.error || '文章を分解できませんでした。');
         parsedLogDrafts = (result.logs || []).map(log => ({
@@ -951,7 +1008,7 @@
       document.getElementById('analysis-loading').classList.remove('hidden');
       document.getElementById('analysis-loading').classList.add('flex');
       try {
-        const payload = { project: { id: project.id, title: project.title, duration: project.duration }, logs: project.logs, baseline: calculateLocalAnalysis() };
+        const payload = { project: { id: project.id, title: project.title, duration: project.duration }, participants: participantsOf(project), logs: project.logs, baseline: calculateLocalAnalysis() };
         const body = new URLSearchParams({ action: 'analyzeCombined', apiKey, payload: JSON.stringify(payload) });
         const result = await postToAppsScript(apiUrl, body, { timeoutMs: 90000, timeoutLabel: 'AI分析' });
         if (!result.ok) {
@@ -1175,10 +1232,10 @@
           </div>
           <div>
             <div class="mb-3 flex items-center justify-between font-mono text-[11px] font-semibold">
-              <span class="text-acid">tada <strong class="value-a ml-1">50%</strong></span>
-              <span class="text-violet-300"><strong class="value-b mr-1">50%</strong> riku</span>
+              <span class="text-acid"><span class="name-a">tada</span> <strong class="value-a ml-1">50%</strong></span>
+              <span class="text-violet-300"><strong class="value-b mr-1">50%</strong> <span class="name-b">riku</span></span>
             </div>
-            <input type="range" min="0" max="100" value="50" step="1" class="range task-slider w-full" aria-label="${task.name}のtadaの貢献割合">
+            <input type="range" min="0" max="100" value="50" step="1" class="range task-slider w-full" aria-label="${task.name}の貢献割合">
             ${task.adjustable ? `
               <div class="mt-4 flex items-center gap-3 border-t border-line/70 pt-3">
                 <span class="shrink-0 font-mono text-[10px] text-slate-500">制作量</span>
@@ -1224,7 +1281,7 @@
     function renderSplit(a, b, totalPoints) {
       const analysis = getActiveProject()?.analysis;
       const pointsText = analysis
-        ? `分析推奨 tada ${Number(analysis.recommendedA).toFixed(1)}% / 最終合意を優先`
+        ? `分析推奨 ${personName('A')} ${Number(analysis.recommendedA).toFixed(1)}% / 最終合意を優先`
         : 'ログ分析は参考値 / 最終合意を優先';
       
       const barA = document.getElementById('bar-a');
@@ -1239,8 +1296,8 @@
 
       const oldLabelA = document.getElementById('bar-a-label');
       const oldLabelB = document.getElementById('bar-b-label');
-      if (oldLabelA) oldLabelA.innerHTML = a >= 12 ? `tada&nbsp; ${a.toFixed(1)}%` : a >= 5 ? `${a.toFixed(0)}%` : '';
-      if (oldLabelB) oldLabelB.innerHTML = b >= 12 ? `riku&nbsp; ${b.toFixed(1)}%` : b >= 5 ? `${b.toFixed(0)}%` : '';
+      if (oldLabelA) oldLabelA.innerHTML = a >= 12 ? `${escapeHtml(personName('A'))}&nbsp; ${a.toFixed(1)}%` : a >= 5 ? `${a.toFixed(0)}%` : '';
+      if (oldLabelB) oldLabelB.innerHTML = b >= 12 ? `${escapeHtml(personName('B'))}&nbsp; ${b.toFixed(1)}%` : b >= 5 ? `${b.toFixed(0)}%` : '';
 
       document.getElementById('active-points').textContent = pointsText;
     }
@@ -1280,7 +1337,7 @@
       if (value === null || value === undefined || value === '') return `${label}: 判定保留`;
       const number = Number(value);
       return Number.isFinite(number)
-        ? `${label}: tada ${number.toFixed(1)}% / riku ${(100 - number).toFixed(1)}%`
+        ? `${label}: ${personName('A')} ${number.toFixed(1)}% / ${personName('B')} ${(100 - number).toFixed(1)}%`
         : `${label}: 判定保留`;
     }
 
@@ -1291,7 +1348,7 @@
       const logLines = (project?.logs || []).map(rawLog => {
         const log = normalizeLog(rawLog);
         const mode = log.contributionMode ? ` / 関わり方 ${CONTRIBUTION_MODES[log.contributionMode]}` : '';
-        return `${PERSON_NAMES[log.person] || log.person} / ${logTypes[log.type]?.label || log.type} / ${log.name} / ${log.count}本 / 貢献範囲 ${log.scope}:${SCOPE_LEVELS[log.scope].label} / 制作負荷 ${log.effort}:${EFFORT_LEVELS[log.effort].label}${mode} / ${log.details || '詳細なし'}`;
+        return `${personName(log.person)} / ${logTypes[log.type]?.label || log.type} / ${log.name} / ${log.count}本 / 貢献範囲 ${log.scope}:${SCOPE_LEVELS[log.scope].label} / 制作負荷 ${log.effort}:${EFFORT_LEVELS[log.effort].label}${mode} / ${log.details || '詳細なし'}`;
       });
       return [
         `SPLIT DATA — ${project?.title || 'Untitled Track'}`,
@@ -1306,12 +1363,12 @@
           axisCopyLine('音楽的比重', analysis.musicalA),
           axisCopyLine('創作主体性', analysis.creativeAgencyA),
           axisCopyLine('完成・収束寄与', analysis.creativeResolutionA),
-          axisCopyLine('5軸音楽分析', analysis.betaTadaPercent),
+          axisCopyLine('5軸音楽分析', analysis.betaPercentA ?? analysis.betaTadaPercent),
           axisCopyLine('推奨値', analysis.recommendedA)
         ] : ['未分析']),
         '',
         '--------------------------------',
-        `FINAL AGREEMENT: tada ${result.a.toFixed(1)}% / riku ${result.b.toFixed(1)}%`
+        `FINAL AGREEMENT: ${personName('A')} ${result.a.toFixed(1)}% / ${personName('B')} ${result.b.toFixed(1)}%`
       ].filter(line => line !== '').join('\n');
     }
 
@@ -1515,6 +1572,12 @@
     document.getElementById('back-dashboard').addEventListener('click', showDashboard);
     document.getElementById('sync-btn').addEventListener('click', syncWithSheets);
     document.querySelectorAll('.project-field').forEach(field => field.addEventListener('input', scheduleProjectSave));
+    // 参加者名を変えたら、ログ一覧・分析カード・スプリット表示の名前も即座に更新する。
+    ['participant-a', 'participant-b'].forEach(id => document.getElementById(id).addEventListener('input', () => {
+      if (!getActiveProject()) return;
+      renderProductionLogs();
+      calculateSplit();
+    }));
 
     document.getElementById('parse-narrative-btn').addEventListener('click', () => parseNarrativeWithGoogle('log-narrative', 'parse-narrative-btn', 'parse-status'));
     document.getElementById('parse-narrative-btn-inline').addEventListener('click', () => parseNarrativeWithGoogle('log-narrative-inline', 'parse-narrative-btn-inline', 'parse-status-inline'));
@@ -1642,7 +1705,7 @@
       const recBtn = document.getElementById('agreement-apply-rec-btn');
       if (analysis && Number.isFinite(Number(analysis.recommendedA))) {
         const recA = Number(analysis.recommendedA);
-        hintText.textContent = `AI推奨値: tada ${recA.toFixed(1)}% / riku ${(100 - recA).toFixed(1)}%`;
+        hintText.textContent = `AI推奨値: ${personName('A')} ${recA.toFixed(1)}% / ${personName('B')} ${(100 - recA).toFixed(1)}%`;
         recBtn.classList.remove('hidden');
       } else {
         hintText.textContent = 'AI分析を実行すると推奨値が表示されます';

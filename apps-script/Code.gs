@@ -1,7 +1,9 @@
 const PROJECT_HEADERS = [
   'id', 'title', 'status', 'client', 'deadline', 'bpm', 'duration',
   'splitA', 'splitB', 'finalA', 'analysisJson', 'tasksJson', 'createdAt', 'updatedAt',
-  'archived', 'archivedAt'
+  'archived', 'archivedAt',
+  // 新しい列は必ず末尾へ追加する（既存シートの列位置を壊さないため）。
+  'participantsJson'
 ];
 const LOG_HEADERS = [
   'id', 'projectId', 'person', 'type', 'name', 'count', 'duration',
@@ -27,6 +29,10 @@ const ANALYSIS_WEIGHTS = {
 };
 // これ未満のconfidenceのAI評価は最終スプリットへ入れない。
 const MIN_AXIS_CONFIDENCE = 0.70;
+// 参加者は案件ごとに名前を持つ。内部キー(A/B)と表示名を分離しておく。
+const PERSON_KEYS = ['A', 'B'];
+const DEFAULT_PARTICIPANTS = { A: 'tada', B: 'riku' };
+
 const DELETED_PROJECT_HEADERS = PROJECT_HEADERS.concat(['deletedAt']);
 const DELETED_LOG_HEADERS = LOG_HEADERS.concat(['projectTitle', 'deletedAt']);
 const BETA_ANALYSIS_HEADERS = ['projectId', 'projectTitle', 'status', 'analysisJson', 'updatedAt', 'confirmedAt'];
@@ -253,7 +259,8 @@ function upsertProject_(sheet, project) {
     project.createdAt || new Date().toISOString(),
     project.updatedAt || new Date().toISOString(),
     project.archived === true,
-    project.archivedAt || ''
+    project.archivedAt || '',
+    JSON.stringify(participants_(project.participants))
   ];
   const rowNumber = findRowById_(sheet, project.id);
   if (rowNumber) sheet.getRange(rowNumber, 1, 1, row.length).setValues([row]);
@@ -341,6 +348,7 @@ function readProjects_(projectSheet, logSheet) {
     splitA: Number(record.splitA) || 0,
     splitB: Number(record.splitB) || 0,
     finalA: Number(record.finalA ?? record.splitA) || 0,
+    participants: participants_(parseJson_(record.participantsJson, null)),
     analysis: parseJson_(record.analysisJson, null),
     tasks: parseJson_(record.tasksJson, {}),
     logs: logsByProject[record.id] || [],
@@ -360,10 +368,11 @@ function parseNarrative_(payload) {
   const model = properties.getProperty('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
   if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured.');
   const allowedTypes = ['melody', 'structure', 'motif', 'harmony', 'beat', 'bass', 'guitar', 'instrument', 'sound', 'sample', 'mix', 'delivery'];
+  const names = participants_(payload && payload.participants);
   const prompt = [
     '音楽制作コライトの作業報告を、登録可能な制作ログへ分解してください。',
     '複数の担当者、作業、カテゴリが含まれる場合は必ず別ログに分けてください。文章に書かれていない数値や機材、採用箇所は推測しないでください。',
-    '担当者は必ず名前で扱い、tadaまたはrikuを返してください。不明なら空文字にしてuncertainFieldsへ「担当」を追加してください。記号や代替名で表現しないでください。',
+    `担当者は必ず名前で扱い、${names.A}または${names.B}を返してください。不明なら空文字にしてuncertainFieldsへ「担当」を追加してください。記号や代替名で表現しないでください。`,
     'typeは次から選択: melody, structure, motif, harmony, beat, bass, guitar, instrument, sound, sample, mix, delivery。',
     'countは本数。不明なら1。scopeは貢献範囲、effortは制作負荷（カロリー）を次の5段階から選んでください。',
     'scope: 1=ワンポイント（単発の差し込み・装飾）、2=1セクション（Aメロ・サビなど一部の構成）、3=複数セクション（2〜3程度の構成にまたがる範囲）、4=曲の大部分（サビ以外にも複数箇所で使われる、曲の骨格に近い要素）、5=曲全体（一曲を通して存在する要素）。',
@@ -371,9 +380,9 @@ function parseNarrative_(payload) {
     '原文から判断できないscopeまたはeffortは中立値3にし、uncertainFieldsへ「貢献範囲」または「制作負荷」を追加してください。',
     'nameは短い作業名。detailsには役割、元になった案、変更内容、採用箇所など、原文にある事実を残してください。',
     'contributionModeは任意項目です。原文からその人の関わり方が明確に読み取れる場合だけ creation(新規作成) / development(発展・再構築) / modification(修正・調整) / integration(統合・判断) / execution(実装・演奏) から選んでください。',
-    '例:「rikuがサビメロを0から作った」→"creation"。「tadaがrikuのコード案を元にサビを全面的に作り直した」→"development"。判断できない場合は必ず空文字""にし、推測で埋めないでください。contributionModeが空でも問題ありません。uncertainFieldsへ追加する必要もありません。',
+    `例:「${names.B}がサビメロを0から作った」→"creation"。「${names.A}が${names.B}のコード案を元にサビを全面的に作り直した」→"development"。判断できない場合は必ず空文字""にし、推測で埋めないでください。contributionModeが空でも問題ありません。uncertainFieldsへ追加する必要もありません。`,
     '不明または曖昧な項目名をuncertainFields配列に入れてください。最大20件です。',
-    'JSONのみを返してください。形式: {"logs":[{"person":"tada|riku|","type":"...","name":"...","count":1,"scope":3,"effort":3,"contributionMode":"","details":"...","uncertainFields":["担当","貢献範囲"]}]}',
+    `JSONのみを返してください。形式: {"logs":[{"person":"${names.A}|${names.B}|","type":"...","name":"...","count":1,"scope":3,"effort":3,"contributionMode":"","details":"...","uncertainFields":["担当","貢献範囲"]}]}`,
     `案件情報: ${JSON.stringify(payload.project || {})}`,
     `作業報告: ${text}`
   ].join('\n');
@@ -398,8 +407,7 @@ function parseNarrative_(payload) {
   const logs = Array.isArray(parsed.logs) ? parsed.logs.slice(0, 20) : [];
   return logs.map(log => {
     const uncertain = Array.isArray(log.uncertainFields) ? log.uncertainFields.map(String) : [];
-    const personName = String(log.person || '').trim().toLowerCase();
-    const person = personName === 'riku' ? 'B' : personName === 'tada' ? 'A' : '';
+    const person = personKey_(log.person, names);
     const type = allowedTypes.indexOf(log.type) >= 0 ? log.type : 'instrument';
     if (!person && uncertain.indexOf('担当') < 0) uncertain.push('担当');
     if (allowedTypes.indexOf(log.type) < 0 && uncertain.indexOf('カテゴリ') < 0) uncertain.push('カテゴリ');
@@ -425,9 +433,10 @@ function analyzeBeta_(payload) {
   const geminiKey = properties.getProperty('GEMINI_API_KEY');
   const model = properties.getProperty('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
   if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured.');
+  const names = participants_(payload.participants);
   const namedLogs = payload.logs.map(log => ({
     id: String(log.id || ''),
-    person: String(log.person || '').toLowerCase() === 'riku' || log.person === 'B' ? 'riku' : 'tada',
+    person: String(log.person || '').toLowerCase() === 'riku' || log.person === 'B' ? names.B : names.A,
     category: String(log.type || 'instrument'),
     name: String(log.name || ''),
     scope: level_(log.scope, 3),
@@ -443,7 +452,7 @@ function analyzeBeta_(payload) {
   };
   const prompt = [
     'あなたは音楽制作コライトの構造的な貢献を整理する分析者です。人物の優劣、作業時間、制作負荷、演奏技術の上手さ、好みは評価しません。完成曲へ残った音楽的な影響だけを整理してください。',
-    '担当者名はtadaとrikuです。回答文とpersonには必ずこの名前を使い、記号・頭文字・代替名を使用しないでください。',
+    `担当者名は${names.A}と${names.B}です。回答文とpersonには必ずこの名前を使い、記号・頭文字・代替名を使用しないでください。`,
     '関連する複数ログが同じメロディー、モチーフ、コード、ビート、音色、ミックス処理を指す場合は、必ず1つのmusical elementへ統合してください。ログ件数を貢献点にしないでください。',
     'カテゴリは melody, structure, motif, harmony, beat, bass, guitar, instrument, sound, sample, mix, delivery のいずれかです。完成曲に実際に存在するカテゴリだけに重要度を与え、categoryWeightsのweight合計を100にしてください。',
     '各elementのidentityScoreは曲の同一性・核への近さ、scopeScoreは完成曲での影響範囲を1〜5で評価してください。',
@@ -452,7 +461,7 @@ function analyzeBeta_(payload) {
     '各点数には制作ログに明記された事実だけを根拠としてevidenceへ日本語で記載し、推測しないでください。confidenceは0〜1です。根拠不足は中立値3（adoptionのみ3）としconfidenceを0.69以下にしてください。',
     'AIは最終割合を決めません。割合・人物評価・勝敗に関する文章を出さないでください。',
     'summaryには、抽出したmusical elementの名前とカテゴリ、各担当者がどの要素にどう関わったか(原案・発展・整理など)、なぜそのcategoryWeightsになったのかを、具体例を挙げながら4〜6文程度で説明してください。「メロディーの比重が高い」のような抽象的な一文だけで終えないでください。',
-    'JSONのみを返してください。形式: {"summary":"分析の詳しい説明","categoryWeights":[{"category":"melody","weight":25,"reason":"理由","confidence":0.8}],"elements":[{"id":"element-1","name":"サビの主旋律","category":"melody","identityScore":5,"scopeScore":3,"evidence":"根拠","confidence":0.9,"contributors":[{"person":"tada","role":"核となる原案","roleScore":5,"adoptionScore":5,"irreplaceabilityScore":5,"evidence":"根拠","confidence":0.9}]}]}',
+    `JSONのみを返してください。形式: {"summary":"分析の詳しい説明","categoryWeights":[{"category":"melody","weight":25,"reason":"理由","confidence":0.8}],"elements":[{"id":"element-1","name":"サビの主旋律","category":"melody","identityScore":5,"scopeScore":3,"evidence":"根拠","confidence":0.9,"contributors":[{"person":"${names.A}","role":"核となる原案","roleScore":5,"adoptionScore":5,"irreplaceabilityScore":5,"evidence":"根拠","confidence":0.9}]}]}`,
     `案件: ${JSON.stringify(projectSummary)}`,
     `制作ログ: ${JSON.stringify(namedLogs)}`
   ].join('\n');
@@ -473,7 +482,7 @@ function analyzeBeta_(payload) {
   const geminiResponse = JSON.parse(responseBody);
   const responseText = geminiResponse.candidates && geminiResponse.candidates[0] && geminiResponse.candidates[0].content.parts[0].text;
   if (!responseText) throw new Error('Gemini API returned no beta analysis.');
-  const normalized = normalizeBetaAnalysis_(JSON.parse(extractJsonObject_(responseText)), model);
+  const normalized = normalizeBetaAnalysis_(JSON.parse(extractJsonObject_(responseText)), model, names);
   normalized.calculation = calculateBetaScores_(normalized);
   return normalized;
 }
@@ -487,7 +496,7 @@ function saveBetaAnalysis_(payload) {
   try {
     const spreadsheet = getSpreadsheet_();
     const betaSheet = ensureSheet_(spreadsheet, 'BetaAnalyses', BETA_ANALYSIS_HEADERS);
-    const normalized = normalizeBetaAnalysis_(payload.analysis, String(payload.analysis.model || 'manual-review'));
+    const normalized = normalizeBetaAnalysis_(payload.analysis, String(payload.analysis.model || 'manual-review'), payload.participants);
     normalized.status = status;
     normalized.updatedAt = new Date().toISOString();
     normalized.confirmedAt = status === 'confirmed' ? normalized.updatedAt : '';
@@ -504,15 +513,16 @@ function saveBetaAnalysis_(payload) {
   }
 }
 
-function normalizeBetaAnalysis_(input, model) {
+function normalizeBetaAnalysis_(input, model, participants) {
   const source = input && typeof input === 'object' ? input : {};
   const allowedCategories = ['melody', 'structure', 'motif', 'harmony', 'beat', 'bass', 'guitar', 'instrument', 'sound', 'sample', 'mix', 'delivery'];
   const elements = (Array.isArray(source.elements) ? source.elements : []).slice(0, 40).map((element, elementIndex) => {
     const category = allowedCategories.indexOf(String(element.category || '')) >= 0 ? String(element.category) : 'instrument';
     const contributorsByName = {};
     (Array.isArray(element.contributors) ? element.contributors : []).forEach(contributor => {
-      const person = String(contributor.person || '').trim().toLowerCase();
-      if (person !== 'tada' && person !== 'riku') return;
+      // 保存形式は内部キー(A/B)。旧データの実名も personKey_ が吸収する。
+      const person = personKey_(contributor.person, participants);
+      if (!person) return;
       const normalizedContributor = {
         person: person,
         role: String(contributor.role || '役割不明').slice(0, 120),
@@ -609,15 +619,15 @@ function calculateBetaScores_(analysis) {
     })
   })).filter(element => element.contributors.length > 0);
   const categories = [...new Set(eligibleElements.map(element => element.category))];
-  let tadaPoints = 0;
-  let rikuPoints = 0;
+  let pointsA = 0;
+  let pointsB = 0;
   const categoryBreakdown = [];
   categories.forEach(category => {
     const categoryElements = eligibleElements.filter(element => element.category === category);
     const factors = categoryElements.map(element => 0.6 * level_(element.identityScore, 3) / 5 + 0.4 * level_(element.scopeScore, 3) / 5);
     const factorTotal = factors.reduce((sum, factor) => sum + factor, 0) || 1;
-    let categoryTada = 0;
-    let categoryRiku = 0;
+    let categoryA = 0;
+    let categoryB = 0;
     categoryElements.forEach((element, index) => {
       const elementPoints = (categoryWeights[category] || 0) * factors[index] / factorTotal;
       const contributorScores = element.contributors.map(contributor => ({
@@ -627,19 +637,19 @@ function calculateBetaScores_(analysis) {
       const contributorTotal = contributorScores.reduce((sum, item) => sum + item.score, 0) || 1;
       contributorScores.forEach(item => {
         const points = elementPoints * item.score / contributorTotal;
-        if (item.person === 'riku') categoryRiku += points;
-        else categoryTada += points;
+        if (item.person === 'B') categoryB += points;
+        else categoryA += points;
       });
     });
-    tadaPoints += categoryTada;
-    rikuPoints += categoryRiku;
-    categoryBreakdown.push({ category: category, weight: categoryWeights[category] || 0, tadaPoints: categoryTada, rikuPoints: categoryRiku });
+    pointsA += categoryA;
+    pointsB += categoryB;
+    categoryBreakdown.push({ category: category, weight: categoryWeights[category] || 0, pointsA: categoryA, pointsB: categoryB });
   });
-  const total = tadaPoints + rikuPoints;
+  const total = pointsA + pointsB;
   // 十分な比較材料が残らない場合は「判定保留」とし、50:50を作らない。
   const contributorsLeft = [...new Set(eligibleElements.reduce((names, element) => names.concat(element.contributors.map(c => c.person)), []))];
   const available = eligibleElements.length > 0 && total > 0 && contributorsLeft.length > 0;
-  const tadaPercent = available ? tadaPoints / total * 100 : null;
+  const percentA = available ? pointsA / total * 100 : null;
   const reviewItems = [];
   (analysis.categoryWeights || []).forEach(item => {
     if (Number(item.confidence) < 0.7 || !String(item.reason || '').trim()) reviewItems.push(`カテゴリ: ${item.category}`);
@@ -652,8 +662,8 @@ function calculateBetaScores_(analysis) {
   });
   return {
     available: available,
-    tadaPercent: tadaPercent,
-    rikuPercent: available ? 100 - tadaPercent : null,
+    percentA: percentA,
+    percentB: available ? 100 - percentA : null,
     usedElementCount: eligibleElements.length,
     excludedForConfidence: [...new Set(excludedForConfidence)].slice(0, 30),
     categoryBreakdown: categoryBreakdown,
@@ -677,14 +687,14 @@ function analyzeCombined_(payload) {
   const logAnalysis = analyzeProject_(payload);
   let betaAnalysis = null;
   try {
-    betaAnalysis = analyzeBeta_({ project: project, logs: payload.logs });
+    betaAnalysis = analyzeBeta_({ project: project, participants: payload.participants, logs: payload.logs });
   } catch (error) {
     // 5軸は補助軸なので、失敗しても判定保留として全体分析は返す。
     betaAnalysis = null;
   }
   const betaCalculation = betaAnalysis && betaAnalysis.calculation;
   const betaAvailable = !!(betaCalculation && betaCalculation.available);
-  const betaTadaPercent = betaAvailable ? clamp_(Number(betaCalculation.tadaPercent), 0, 100, null) : null;
+  const betaPercentA = betaAvailable ? clamp_(Number(betaCalculation.percentA), 0, 100, null) : null;
 
   const musicalAvailable = Number.isFinite(Number(logAnalysis.musicalA)) && confidence_(logAnalysis.musicalConfidence) >= MIN_AXIS_CONFIDENCE;
   const agencyAvailable = Number.isFinite(Number(logAnalysis.creativeAgencyA)) && confidence_(logAnalysis.agencyConfidence) >= MIN_AXIS_CONFIDENCE;
@@ -696,25 +706,27 @@ function analyzeCombined_(payload) {
     { key: 'musical', value: Number(logAnalysis.musicalA), weight: ANALYSIS_WEIGHTS.musical, available: musicalAvailable },
     { key: 'agency', value: Number(logAnalysis.creativeAgencyA), weight: ANALYSIS_WEIGHTS.agency, available: agencyAvailable },
     { key: 'resolution', value: Number(logAnalysis.creativeResolutionA), weight: ANALYSIS_WEIGHTS.resolution, available: resolutionAvailable },
-    { key: 'fiveAxis', value: betaTadaPercent, weight: ANALYSIS_WEIGHTS.fiveAxis, available: betaAvailable }
+    { key: 'fiveAxis', value: betaPercentA, weight: ANALYSIS_WEIGHTS.fiveAxis, available: betaAvailable }
   ]);
 
   if (project.id && betaAnalysis) {
     try {
-      saveBetaAnalysis_({ projectId: project.id, projectTitle: project.title || 'Untitled Track', status: 'draft', analysis: betaAnalysis });
+      saveBetaAnalysis_({ projectId: project.id, projectTitle: project.title || 'Untitled Track', status: 'draft', analysis: betaAnalysis, participants: payload.participants });
     } catch (error) {
       // ベータ保存に失敗しても統合分析自体は返す。
     }
   }
 
   return {
-    metricVersion: 5,
+    // 参加者名を可変にしたのに合わせ、返却キーも A / B 基準へ統一した。
+    metricVersion: 6,
     weights: ANALYSIS_WEIGHTS,
+    participants: participants_(payload.participants),
     quantityA: logAnalysis.quantityA,
     musicalA: musicalAvailable ? logAnalysis.musicalA : null,
     creativeAgencyA: agencyAvailable ? logAnalysis.creativeAgencyA : null,
     creativeResolutionA: resolutionAvailable ? logAnalysis.creativeResolutionA : null,
-    betaTadaPercent: betaTadaPercent,
+    betaPercentA: betaPercentA,
     musicalConfidence: confidence_(logAnalysis.musicalConfidence),
     agencyConfidence: confidence_(logAnalysis.agencyConfidence),
     resolutionConfidence: confidence_(logAnalysis.resolutionConfidence),
@@ -742,8 +754,9 @@ function analyzeProject_(payload) {
   const model = properties.getProperty('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
   if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured.');
   const baseline = payload.baseline || {};
+  const names = participants_(payload.participants);
   const namedLogs = payload.logs.map(log => ({
-    person: log.person === 'B' ? 'riku' : 'tada',
+    person: log.person === 'B' ? names.B : names.A,
     type: log.type,
     name: log.name,
     count: log.count,
@@ -756,22 +769,22 @@ function analyzeProject_(payload) {
   const prompt = [
     'あなたは音楽制作コライトの貢献分析者です。品質や人物の優劣ではなく、完成曲の成立に対する音楽的中心性だけを評価してください。',
     'メインメロディー、曲構成、固有モチーフは高い比重。コード、ビート、ベース、ミックスは曲への影響範囲で評価。scopeは影響範囲、effortは制作負荷として扱い、単純なトラック追加やサンプル配置は物量が多くても音楽的比重を過大評価しないでください。',
-    '担当者はtadaとrikuです。回答文では必ずこの名前を使い、記号や代替名で表現しないでください。',
-    'tadaの音楽的比重を0〜100のtadaMusicalPercentで返してください。証拠はログに書かれた事実だけを使い、推測しないでください。',
+    `担当者は${names.A}と${names.B}です。回答文では必ずこの名前を使い、記号や代替名で表現しないでください。`,
+    `${names.A}の音楽的比重を0〜100のaMusicalPercentで返してください（残りが${names.B}の比重です）。証拠はログに書かれた事実だけを使い、推測しないでください。`,
     '物量の割合はシステムが本数・貢献範囲・制作負荷から算出済みです。割合を変更せず、quantityCommentには両者の物量差とその主な理由を、ログに出てくる具体的な作業名・本数・貢献範囲(1〜5)・制作負荷(1〜5)の値を複数挙げながら3〜5文程度で具体的に説明してください。抽象的な言い回しは避け、どのログがどれだけ物量に効いたかが分かるようにしてください。',
-    'musicalDetailには、tadaとrikuそれぞれのどの作業が完成曲の音楽的な骨格(メロディー・構成・モチーフなど)にどの程度影響したかを、作業名とカテゴリに触れながら3〜5文程度で具体的に説明してください。',
+    `musicalDetailには、${names.A}と${names.B}それぞれのどの作業が完成曲の音楽的な骨格(メロディー・構成・モチーフなど)にどの程度影響したかを、作業名とカテゴリに触れながら3〜5文程度で具体的に説明してください。`,
     '',
     '同じ制作ログから、さらに2つの軸を評価してください。',
     '【Creative Agency / 創作主体性】その音楽要素に対してどの程度主体的な創作を行ったかを見ます。1=実装・再現・微調整、2=小規模な修正・追加、3=独自の発展・新規要素追加、4=大幅な再構築・創造的展開、5=核となる原案・0→1の創作。',
     'Agencyの強い根拠: 0から作った、考案した、原案を作った、新しいメロディー/コードを書いた、全面再構築した、元案から大幅に展開した。弱い根拠: 打ち込んだ、録音した、コピーした、微調整した、音量を直した、決まった内容を再現した。',
-    'Agencyでは「作業時間」「本数」「制作負荷」「演奏技術の上手さ」を根拠にしてはいけません。それらは物量側で評価済みです。tadaのAgency割合を0〜100のtadaAgencyPercentで返してください。',
+    `Agencyでは「作業時間」「本数」「制作負荷」「演奏技術の上手さ」を根拠にしてはいけません。それらは物量側で評価済みです。${names.A}のAgency割合を0〜100のaAgencyPercentで返してください。`,
     '【Creative Resolution / 完成・収束寄与】その人の作業や判断で曲がどれだけ完成形へ前進したかを見ます。複数案の統合、構成の整理、不要部分の削除、サビの成立、コードとメロディーの矛盾解決、他者素材の組み合わせ、曲全体の方向決定などを拾います。1=自分の担当部分を処理しただけ、5=楽曲全体に関わる重要な判断・収束。',
-    '単に大量に作ったことをResolutionの加点理由にしてはいけません。スケジュール管理やプロジェクト管理も対象外です。tadaのResolution割合を0〜100のtadaResolutionPercentで返してください。',
+    `単に大量に作ったことをResolutionの加点理由にしてはいけません。スケジュール管理やプロジェクト管理も対象外です。${names.A}のResolution割合を0〜100のaResolutionPercentで返してください。`,
     'ログのcontributionMode(関わり方)は任意入力です。設定されていれば有力な手がかりとして使い、空欄でもdetailsから明確に読み取れる場合だけ判断してください。読み取れない場合は推測せず、該当軸のconfidenceを0.69以下にしてください。過去ログの修正をユーザーへ要求する文言は書かないでください。',
     'musicalConfidence / agencyConfidence / resolutionConfidence を0〜1で返してください。ログに明確な根拠がある場合だけ0.70以上にし、根拠が乏しい場合は必ず0.69以下にしてください。低confidenceの軸は最終計算から除外されます。',
     'agencyDetail / resolutionDetail には、それぞれの判断根拠をログの具体的な作業名を挙げながら2〜4文で書いてください。',
     'summaryには、物量・音楽的比重・創作主体性・完成寄与を踏まえた総合的な所見を3〜4文程度でまとめてください。割合の正解を決めるのではなく、話し合いの材料を示す姿勢で書いてください。',
-    'JSONのみを返してください。形式: {"tadaMusicalPercent":number,"tadaAgencyPercent":number,"tadaResolutionPercent":number,"musicalConfidence":number,"agencyConfidence":number,"resolutionConfidence":number,"quantityComment":string,"musicalDetail":string,"agencyDetail":string,"resolutionDetail":string,"summary":string,"evidence":[string]}',
+    'JSONのみを返してください。形式: {"aMusicalPercent":number,"aAgencyPercent":number,"aResolutionPercent":number,"musicalConfidence":number,"agencyConfidence":number,"resolutionConfidence":number,"quantityComment":string,"musicalDetail":string,"agencyDetail":string,"resolutionDetail":string,"summary":string,"evidence":[string]}',
     `案件: ${JSON.stringify(payload.project || {})}`,
     `物量集計: ${JSON.stringify({ quantityTadaPercent: baseline.quantityA, detail: baseline.quantityDetail, evidence: baseline.evidence })}`,
     `制作ログ: ${JSON.stringify(namedLogs)}`
@@ -799,11 +812,11 @@ function analyzeProject_(payload) {
   const parsed = JSON.parse(extractJsonObject_(text));
   const quantityA = clamp_(Number(baseline.quantityA), 0, 100, 50);
   // 値が返らなかった軸はnullのまま（判定保留）とし、中立値50を作らない。
-  const musicalA = clamp_(Number(parsed.tadaMusicalPercent), 0, 100, null);
-  const agencyA = clamp_(Number(parsed.tadaAgencyPercent), 0, 100, null);
-  const resolutionA = clamp_(Number(parsed.tadaResolutionPercent), 0, 100, null);
+  const musicalA = clamp_(Number(parsed.aMusicalPercent), 0, 100, null);
+  const agencyA = clamp_(Number(parsed.aAgencyPercent), 0, 100, null);
+  const resolutionA = clamp_(Number(parsed.aResolutionPercent), 0, 100, null);
   return {
-    metricVersion: 5,
+    metricVersion: 6,
     quantityA: quantityA,
     musicalA: musicalA,
     creativeAgencyA: agencyA,
@@ -848,6 +861,29 @@ function extractJsonObject_(text) {
 function level_(value, fallback) {
   const level = Math.round(Number(value));
   return Number.isFinite(level) && level >= 1 && level <= 5 ? level : fallback;
+}
+
+// 参加者名が無い過去案件は従来どおり tada / riku として扱う。
+function participants_(source) {
+  const supplied = source && typeof source === 'object' ? source : {};
+  const result = {};
+  PERSON_KEYS.forEach(key => {
+    const name = String(supplied[key] == null ? '' : supplied[key]).trim().slice(0, 20);
+    result[key] = name || DEFAULT_PARTICIPANTS[key];
+  });
+  return result;
+}
+
+// AIが返した担当者名を内部キー(A/B)へ戻す。未知の名前は空文字。
+function personKey_(value, participants) {
+  const name = String(value == null ? '' : value).trim().toLowerCase();
+  if (!name) return '';
+  if (name === 'a' || name === 'b') return name.toUpperCase();
+  const names = participants_(participants);
+  for (let index = 0; index < PERSON_KEYS.length; index += 1) {
+    if (String(names[PERSON_KEYS[index]]).toLowerCase() === name) return PERSON_KEYS[index];
+  }
+  return '';
 }
 
 // 未設定・未知の値は空文字（未選択）として扱う。古いログには列自体が無い。

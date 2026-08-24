@@ -6,7 +6,7 @@ GitHub Pagesには静的な `index.html` だけを配置します。スプレッ
 
 データは次の6シートに分けて保存されます。
 
-- `Projects`: 案件情報、スプリット、タスク状態
+- `Projects`: 案件情報、参加者名、スプリット、タスク状態
 - `ProductionLogs`: ギター録音・楽器トラック・サンプルの明細
 - `DeletedProjects`: 消去した案件の全情報と消去日時
 - `DeletedProductionLogs`: 消去した案件に紐づく全制作ログ、案件名、消去日時
@@ -52,7 +52,13 @@ Gemini APIには対象モデルの無料枠がありますが、利用可能地�
 
 confidenceが0.70未満のAI軸、および5軸分析内のconfidence 0.70未満のelement・contributorは計算から除外されます。除外により材料が足りなくなった軸は「判定保留」となり、50:50を作らずウェイトから外して残りの軸を100%へ再正規化します（`combineAxes_`）。
 
-`ProductionLogs` シートの末尾には `contributionMode` 列が追加されています。既存シートは `setupDatabase()` を再実行するか、通常の同期時にヘッダーが自動更新されます。列が空の過去ログはそのまま読み込め、修正は不要です。
+## 参加者名
+
+参加者は案件ごとに名前を設定できます（案件情報モーダルの「参加者 1 / 参加者 2」）。内部キーは `A` / `B` のままで、表示名だけを `Projects` シート末尾の `participantsJson` 列へ保存します。未設定の過去案件は従来どおり tada / riku として読み込まれます。
+
+AIプロンプトへは案件の参加者名が渡され、返ってきた担当者名は `personKey_` で内部キーへ戻されます。分析結果のキーも `betaPercentA` のようにA/B基準へ統一済みです（`metricVersion: 6`）。人数を3人以上へ増やす場合は、`PERSON_KEYS` を起点に splitA/splitB とスライダーUIの2択構造を置き換える必要があります。
+
+`ProductionLogs` シートの末尾には `contributionMode` 列が、`Projects` シートの末尾には `participantsJson` 列が追加されています。既存シートは `setupDatabase()` を再実行するか、通常の同期時にヘッダーが自動更新されます。列が空の過去ログはそのまま読み込め、修正は不要です。
 
 この機能を追加した後は、Apps Scriptの `Code.gs` を更新し、ウェブアプリを新しいバージョンとして再デプロイしてください。入力した文章は分析のためGemini APIへ送信されます。
 ## 自動同期と担当者名
