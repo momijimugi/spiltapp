@@ -323,6 +323,14 @@
       return 5;
     }
 
+    // 「元にしたログ」を尋ねる関わり方。新規・実装は他人の素材を前提としないので対象外。
+    const DERIVATIVE_MODES = ['development', 'modification', 'integration'];
+
+    function normalizeBasedOn(value) {
+      if (!Array.isArray(value)) return [];
+      return [...new Set(value.map(item => String(item || '').trim()).filter(Boolean))].slice(0, 10);
+    }
+
     function normalizeContributionMode(value) {
       const mode = String(value ?? '').trim();
       return Object.prototype.hasOwnProperty.call(CONTRIBUTION_MODES, mode) ? mode : '';
@@ -336,23 +344,79 @@
       }).join('');
     }
 
-    function renderContributionModeField(container, selected = '') {
+    function renderContributionModeField(container, selected = '', basedOn = []) {
       if (!container) return;
       container.innerHTML = contributionModeChips(selected);
       container.dataset.mode = normalizeContributionMode(selected);
+      container.dataset.basedOn = JSON.stringify(normalizeBasedOn(basedOn));
+      renderBasedOnField(container);
     }
 
     function readContributionMode(container) {
       return container ? normalizeContributionMode(container.dataset.mode) : '';
     }
 
+    function readBasedOn(container) {
+      if (!container) return [];
+      const picker = container.parentElement?.querySelector('[data-based-on-picker]');
+      if (!picker) return [];
+      return normalizeBasedOn([...picker.querySelectorAll('[data-based-on-id][aria-pressed="true"]')].map(node => node.dataset.basedOnId));
+    }
+
+    // 「何を元にしたか」を文章ではなくタップで残せるようにする。文章量で差がつかないようにするため、
+    // ここで選ばれた関係は構造化データとしてそのままAIへ渡す。
+    function renderBasedOnField(container) {
+      const host = container.parentElement;
+      if (!host) return;
+      const existing = host.querySelector('[data-based-on-field]');
+      const mode = normalizeContributionMode(container.dataset.mode);
+      if (DERIVATIVE_MODES.indexOf(mode) < 0) {
+        if (existing) existing.remove();
+        return;
+      }
+      const selected = new Set(normalizeBasedOn(JSON.parse(container.dataset.basedOn || '[]')));
+      const project = getActiveProject();
+      const candidates = (project?.logs || [])
+        .filter(log => String(log.id) !== String(container.dataset.excludeLogId || ''))
+        .slice()
+        .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+        .slice(0, 30);
+      const field = existing || document.createElement('div');
+      field.dataset.basedOnField = 'true';
+      field.className = 'mt-2.5 rounded-lg border border-line bg-black/20 p-2.5';
+      field.innerHTML = candidates.length
+        ? `<p class="mb-1.5 text-[10px] text-slate-500">元にしたログ（タップで選択・複数可）</p>
+           <div data-based-on-picker class="based-on-picker flex flex-col gap-1">
+             ${candidates.map(log => {
+               const active = selected.has(String(log.id));
+               const date = log.createdAt ? new Date(log.createdAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) : '';
+               return `<button type="button" data-based-on-id="${escapeHtml(log.id)}" aria-pressed="${active}" class="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-[11px] transition ${active ? 'border-acid/60 bg-acid/10 text-acid' : 'border-line text-slate-400 hover:border-slate-600'}">
+                 <span class="shrink-0 font-mono text-[10px] ${log.person === 'B' ? 'text-violet-300' : 'text-acid'}">${escapeHtml(personName(log.person))}</span>
+                 <span class="min-w-0 flex-1 truncate">${escapeHtml(log.name || '制作作業')}</span>
+                 <span class="shrink-0 text-[9px] text-slate-600">${escapeHtml(logTypes[log.type]?.label || log.type || '')}${date ? ` · ${date}` : ''}</span>
+               </button>`;
+             }).join('')}
+           </div>`
+        : '<p class="text-[10px] leading-4 text-slate-600">この曲にはまだ他のログがありません。元にしたログの選択は不要です。</p>';
+      if (!existing) container.insertAdjacentElement('afterend', field);
+    }
+
     // チップは同じ値を再クリックすると未選択へ戻る（初期値を勝手に埋めない）。
     document.addEventListener('click', event => {
       const chip = event.target.closest('[data-mode-chip]');
-      if (!chip) return;
-      const container = chip.parentElement;
-      const next = container.dataset.mode === chip.dataset.modeChip ? '' : chip.dataset.modeChip;
-      renderContributionModeField(container, next);
+      if (chip) {
+        const container = chip.parentElement;
+        const next = container.dataset.mode === chip.dataset.modeChip ? '' : chip.dataset.modeChip;
+        renderContributionModeField(container, next, readBasedOn(container));
+        return;
+      }
+      const source = event.target.closest('[data-based-on-id]');
+      if (!source) return;
+      const active = source.getAttribute('aria-pressed') === 'true';
+      source.setAttribute('aria-pressed', active ? 'false' : 'true');
+      source.className = `flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-[11px] transition ${active ? 'border-line text-slate-400 hover:border-slate-600' : 'border-acid/60 bg-acid/10 text-acid'}`;
+      const container = source.closest('[data-based-on-field]')?.previousElementSibling;
+      if (container) container.dataset.basedOn = JSON.stringify(readBasedOn(container));
     });
 
     // 利用可能な軸だけでウェイトを再正規化する汎用関数（Code.gsのcombineAxes_と同じ考え方）。
@@ -373,8 +437,9 @@
         createdAt: log.createdAt || fallbackDate,
         scope: normalizeLevel(log.scope, legacyScopeLevel(log.duration)),
         effort: normalizeLevel(log.effort, legacyEffortLevel(log.events)),
-        // 過去ログにはこの項目が無い。未設定は空文字のまま扱い、修正を要求しない。
-        contributionMode: normalizeContributionMode(log.contributionMode)
+        // 過去ログにはこれらの項目が無い。未設定のまま扱い、修正を要求しない。
+        contributionMode: normalizeContributionMode(log.contributionMode),
+        basedOn: normalizeBasedOn(log.basedOn)
       };
     }
 
@@ -836,7 +901,7 @@
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="truncate text-sm font-bold text-slate-100">${escapeHtml(log.name)}</p>
                   <span class="shrink-0 rounded bg-white/[.05] px-2 py-0.5 text-[10px] text-slate-400">${escapeHtml(logTypes[log.type]?.label || log.type)}</span>
-                  ${log.contributionMode ? `<span class="shrink-0 rounded border border-line px-2 py-0.5 text-[10px] text-slate-500">${escapeHtml(CONTRIBUTION_MODES[log.contributionMode])}</span>` : ''}
+                  ${log.contributionMode ? `<span class="shrink-0 rounded border border-line px-2 py-0.5 text-[10px] text-slate-500">${escapeHtml(CONTRIBUTION_MODES[log.contributionMode])}${log.basedOn?.length ? ` ←${log.basedOn.length}` : ''}</span>` : ''}
                 </div>
                 <p class="mt-1 truncate font-mono text-xs text-slate-400">${log.count}本 · 範囲${log.scope}:${SCOPE_LEVELS[log.scope].label} · カロリー${log.effort}:${EFFORT_LEVELS[log.effort].label}${timeStr ? ` · ${timeStr}` : ''}</p>
               </div>
@@ -931,7 +996,9 @@
       document.getElementById('log-count').value = '1';
       document.getElementById('log-scope').value = '3';
       document.getElementById('log-effort').value = '3';
-      renderContributionModeField(document.getElementById('log-contribution-mode'), '');
+      const modeField = document.getElementById('log-contribution-mode');
+      delete modeField.dataset.excludeLogId;
+      renderContributionModeField(modeField, '', []);
       document.getElementById('log-submit-btn').textContent = '追加';
       document.getElementById('cancel-log-edit').classList.add('hidden');
     }
@@ -947,7 +1014,10 @@
       document.getElementById('log-scope').value = String(normalizeLevel(log.scope));
       document.getElementById('log-effort').value = String(normalizeLevel(log.effort));
       document.getElementById('log-details').value = log.details || '';
-      renderContributionModeField(document.getElementById('log-contribution-mode'), log.contributionMode);
+      const editModeField = document.getElementById('log-contribution-mode');
+      // 自分自身を「元にしたログ」に選べてしまわないよう除外する。
+      editModeField.dataset.excludeLogId = String(log.id);
+      renderContributionModeField(editModeField, log.contributionMode, log.basedOn);
       document.getElementById('log-submit-btn').textContent = '変更を保存';
       document.getElementById('cancel-log-edit').classList.remove('hidden');
       openLogFormModal();
@@ -995,7 +1065,7 @@
         </div>`).join('');
       container.querySelectorAll('.draft-row').forEach((row, index) => {
         row.querySelector('.draft-type').value = parsedLogDrafts[index].type;
-        renderContributionModeField(row.querySelector('.draft-mode'), parsedLogDrafts[index].contributionMode);
+        renderContributionModeField(row.querySelector('.draft-mode'), parsedLogDrafts[index].contributionMode, parsedLogDrafts[index].basedOn);
       });
       document.getElementById('reopen-drafts-btn').classList.toggle('hidden', parsedLogDrafts.length === 0);
     }
@@ -1074,6 +1144,7 @@
           effort: normalizeLevel(log.effort),
           // 任意項目。AIが判断できなければ空のままにし、登録は妨げない。
           contributionMode: normalizeContributionMode(log.contributionMode),
+          basedOn: [],
           details: String(log.details || ''),
           uncertainFields: Array.isArray(log.uncertainFields) ? log.uncertainFields : []
         }));
@@ -1525,7 +1596,13 @@
       const analysis = project?.analysis;
       const logLines = (project?.logs || []).map(rawLog => {
         const log = normalizeLog(rawLog);
-        const mode = log.contributionMode ? ` / 関わり方 ${CONTRIBUTION_MODES[log.contributionMode]}` : '';
+        const sources = (log.basedOn || [])
+          .map(id => (project?.logs || []).find(item => String(item.id) === String(id)))
+          .filter(Boolean)
+          .map(item => `${personName(item.person)}の${item.name}`);
+        const mode = log.contributionMode
+          ? ` / 関わり方 ${CONTRIBUTION_MODES[log.contributionMode]}${sources.length ? `（元: ${sources.join('、')}）` : ''}`
+          : '';
         return `${personName(log.person)} / ${logTypes[log.type]?.label || log.type} / ${log.name} / ${log.count}本 / 貢献範囲 ${log.scope}:${SCOPE_LEVELS[log.scope].label} / 制作負荷 ${log.effort}:${EFFORT_LEVELS[log.effort].label}${mode} / ${log.details || '詳細なし'}`;
       });
       return [
@@ -1850,6 +1927,7 @@
           scope: normalizeLevel(row.querySelector('.draft-scope').value),
           effort: normalizeLevel(row.querySelector('.draft-effort').value),
           contributionMode: readContributionMode(row.querySelector('.draft-mode')),
+          basedOn: readBasedOn(row.querySelector('.draft-mode')),
           details: row.querySelector('.draft-details').value.trim(),
           createdAt: new Date().toISOString()
         });
@@ -1883,8 +1961,15 @@
         scope: normalizeLevel(document.getElementById('log-scope').value),
         effort: normalizeLevel(document.getElementById('log-effort').value),
         contributionMode: readContributionMode(document.getElementById('log-contribution-mode')),
+        basedOn: readBasedOn(document.getElementById('log-contribution-mode')),
         details: document.getElementById('log-details').value.trim()
       };
+      // 実質必須。未選択でも登録はできるが、一度だけ軽く促す。
+      if (DERIVATIVE_MODES.indexOf(values.contributionMode) >= 0 && !values.basedOn.length
+        && (getActiveProject()?.logs || []).some(log => String(log.id) !== String(editingLogId))) {
+        const proceed = confirm(`「${CONTRIBUTION_MODES[values.contributionMode]}」を選ぶと、元にしたログをタップで選べます。\n選んでおくとAIが判断しやすくなります（文章で書く必要はありません）。\n\nこのまま登録しますか？`);
+        if (!proceed) return;
+      }
       const editingIndex = editingLogId === null ? -1 : project.logs.findIndex(log => String(log.id) === String(editingLogId));
       if (editingIndex >= 0) {
         project.logs[editingIndex] = { ...project.logs[editingIndex], ...values };

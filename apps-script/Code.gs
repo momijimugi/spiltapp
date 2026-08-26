@@ -9,7 +9,7 @@ const LOG_HEADERS = [
   'id', 'projectId', 'person', 'type', 'name', 'count', 'duration',
   'events', 'details', 'createdAt', 'scope', 'effort',
   // 新しい列は必ず末尾へ追加する（既存シートの列位置を壊さないため）。
-  'contributionMode'
+  'contributionMode', 'basedOnIds'
 ];
 // 任意入力。未選択（空文字）を必ず許容する。
 const CONTRIBUTION_MODES = {
@@ -290,7 +290,8 @@ function replaceProjectLogs_(sheet, projectId, logs) {
     log.createdAt || new Date().toISOString(),
     level_(log.scope, 0),
     level_(log.effort, 0),
-    contributionMode_(log.contributionMode)
+    contributionMode_(log.contributionMode),
+    basedOn_(log.basedOn).join(',')
   ]);
   sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, LOG_HEADERS.length).setValues(rows);
 }
@@ -308,7 +309,8 @@ function logsEquivalent_(storedLogs, incomingLogs) {
     String(log.createdAt || ''),
     level_(log.scope, 0),
     level_(log.effort, 0),
-    contributionMode_(log.contributionMode)
+    contributionMode_(log.contributionMode),
+    basedOn_(log.basedOn).join(',')
   ];
   const normalizeIncoming = log => normalizeStored({
     ...log,
@@ -333,6 +335,7 @@ function readProjects_(projectSheet, logSheet) {
       scope: level_(log.scope, 0),
       effort: level_(log.effort, 0),
       contributionMode: contributionMode_(log.contributionMode),
+      basedOn: basedOn_(log.basedOnIds),
       details: log.details,
       createdAt: log.createdAt
     });
@@ -419,6 +422,7 @@ function parseNarrative_(payload) {
       scope: level_(log.scope, 3),
       effort: level_(log.effort, 3),
       contributionMode: contributionMode_(log.contributionMode),
+      basedOn: basedOn_(log.basedOnIds),
       details: String(log.details || '').slice(0, 1000),
       uncertainFields: uncertain.slice(0, 8)
     };
@@ -434,12 +438,21 @@ function analyzeBeta_(payload) {
   const model = properties.getProperty('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
   if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured.');
   const names = participants_(payload.participants);
+  const betaLogsById = {};
+  payload.logs.forEach(log => { if (log.id) betaLogsById[String(log.id)] = log; });
   const namedLogs = payload.logs.map(log => ({
     id: String(log.id || ''),
     person: String(log.person || '').toLowerCase() === 'riku' || log.person === 'B' ? names.B : names.A,
     category: String(log.type || 'instrument'),
     name: String(log.name || ''),
     scope: level_(log.scope, 3),
+    contributionModeLabel: CONTRIBUTION_MODES[contributionMode_(log.contributionMode)] || '',
+    basedOn: basedOn_(log.basedOn).map(id => {
+      const source = betaLogsById[String(id)];
+      if (!source) return '';
+      const sourceName = String(source.person || '').toLowerCase() === 'riku' || source.person === 'B' ? names.B : names.A;
+      return `${sourceName}の「${String(source.name || '制作作業')}」`;
+    }).filter(Boolean),
     details: String(log.details || '')
   }));
   const project = payload.project || {};
@@ -454,6 +467,7 @@ function analyzeBeta_(payload) {
     'あなたは音楽制作コライトの構造的な貢献を整理する分析者です。人物の優劣、作業時間、制作負荷、演奏技術の上手さ、好みは評価しません。完成曲へ残った音楽的な影響だけを整理してください。',
     `担当者名は${names.A}と${names.B}です。回答文とpersonには必ずこの名前を使い、記号・頭文字・代替名を使用しないでください。`,
     '関連する複数ログが同じメロディー、モチーフ、コード、ビート、音色、ミックス処理を指す場合は、必ず1つのmusical elementへ統合してください。ログ件数を貢献点にしないでください。',
+    'basedOnは「そのログが何を元にしたか」をユーザーがボタンで選んだ記録です。basedOnで繋がるログは同じmusical elementとして扱い、元になった側と発展させた側の両方をcontributorsへ含めてください。detailsの文章量・詳しさを評価根拠にしてはいけません。',
     'カテゴリは melody, structure, motif, harmony, beat, bass, guitar, instrument, sound, sample, mix, delivery のいずれかです。完成曲に実際に存在するカテゴリだけに重要度を与え、categoryWeightsのweight合計を100にしてください。',
     '各elementのidentityScoreは曲の同一性・核への近さ、scopeScoreは完成曲での影響範囲を1〜5で評価してください。',
     'contributorsのroleScoreは 1=微調整、2=整理・統合、3=発展、4=大幅な変形・再構築、5=核となる原案。roleには短い日本語の役割名を入れてください。',
@@ -755,6 +769,23 @@ function analyzeProject_(payload) {
   if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured.');
   const baseline = payload.baseline || {};
   const names = participants_(payload.participants);
+  const logsById = {};
+  payload.logs.forEach(log => { if (log.id) logsById[String(log.id)] = log; });
+  // 「何を元にしたか」は文章ではなく構造化データとして渡す。これにより、詳細文を
+  // 長く書いた人が有利になることなくAgencyを判定できる。
+  const describeSource = id => {
+    const source = logsById[String(id)];
+    if (!source) return '';
+    return `${source.person === 'B' ? names.B : names.A}の「${String(source.name || '制作作業')}」`;
+  };
+  const referencedBy = {};
+  payload.logs.forEach(log => {
+    basedOn_(log.basedOn).forEach(id => {
+      if (!logsById[String(id)]) return;
+      if (!referencedBy[String(id)]) referencedBy[String(id)] = [];
+      referencedBy[String(id)].push(`${log.person === 'B' ? names.B : names.A}が${CONTRIBUTION_MODES[contributionMode_(log.contributionMode)] || '利用'}`);
+    });
+  });
   const namedLogs = payload.logs.map(log => ({
     person: log.person === 'B' ? names.B : names.A,
     type: log.type,
@@ -764,6 +795,8 @@ function analyzeProject_(payload) {
     effort: log.effort,
     contributionMode: contributionMode_(log.contributionMode),
     contributionModeLabel: CONTRIBUTION_MODES[contributionMode_(log.contributionMode)] || '',
+    basedOn: basedOn_(log.basedOn).map(describeSource).filter(Boolean),
+    usedByOthers: referencedBy[String(log.id)] || [],
     details: log.details
   }));
   const prompt = [
@@ -780,7 +813,11 @@ function analyzeProject_(payload) {
     `Agencyでは「作業時間」「本数」「制作負荷」「演奏技術の上手さ」を根拠にしてはいけません。それらは物量側で評価済みです。${names.A}のAgency割合を0〜100のaAgencyPercentで返してください。`,
     '【Creative Resolution / 完成・収束寄与】その人の作業や判断で曲がどれだけ完成形へ前進したかを見ます。複数案の統合、構成の整理、不要部分の削除、サビの成立、コードとメロディーの矛盾解決、他者素材の組み合わせ、曲全体の方向決定などを拾います。1=自分の担当部分を処理しただけ、5=楽曲全体に関わる重要な判断・収束。',
     `単に大量に作ったことをResolutionの加点理由にしてはいけません。スケジュール管理やプロジェクト管理も対象外です。${names.A}のResolution割合を0〜100のaResolutionPercentで返してください。`,
-    'ログのcontributionMode(関わり方)は任意入力です。設定されていれば有力な手がかりとして使い、空欄でもdetailsから明確に読み取れる場合だけ判断してください。読み取れない場合は推測せず、該当軸のconfidenceを0.69以下にしてください。過去ログの修正をユーザーへ要求する文言は書かないでください。',
+    'detailsの文章量・詳しさ・語彙の豊かさを評価根拠にしてはいけません。短く「メロディーを作った」とだけ書かれたログと、長文で書かれたログを、記述量の差だけで区別しないでください。書いた量が多い人が有利になる判定は誤りです。',
+    'contributionMode(関わり方)とbasedOn(元にしたログ)は、ユーザーがボタンで選んだ構造化データです。これらが設定されている場合は、detailsが短くても確かな根拠として扱い、該当軸のconfidenceを0.70以上にして構いません。',
+    'basedOnが付いたログは、その素材を発展・修正・統合したことを意味します。元にした側のAgencyは0→1の創作より低く、元になったログの担当者にはその素材の創作が帰属します。',
+    'usedByOthersは、そのログが他者に発展・修正・統合された記録です。他者の作業の土台になったこと自体を、その素材が採用され機能した根拠として扱ってください。',
+    'contributionModeもbasedOnも無く、detailsからも読み取れない場合だけ、推測せずに該当軸のconfidenceを0.69以下にしてください。過去ログの修正をユーザーへ要求する文言は書かないでください。',
     'musicalConfidence / agencyConfidence / resolutionConfidence を0〜1で返してください。ログに明確な根拠がある場合だけ0.70以上にし、根拠が乏しい場合は必ず0.69以下にしてください。低confidenceの軸は最終計算から除外されます。',
     'agencyDetail / resolutionDetail には、それぞれの判断根拠をログの具体的な作業名を挙げながら2〜4文で書いてください。',
     'summaryには、物量・音楽的比重・創作主体性・完成寄与を踏まえた総合的な所見を3〜4文程度でまとめてください。割合の正解を決めるのではなく、話し合いの材料を示す姿勢で書いてください。',
@@ -861,6 +898,17 @@ function extractJsonObject_(text) {
 function level_(value, fallback) {
   const level = Math.round(Number(value));
   return Number.isFinite(level) && level >= 1 && level <= 5 ? level : fallback;
+}
+
+// 「元にしたログ」のID配列。シートにはカンマ区切りで保存する。
+function basedOn_(value) {
+  const list = Array.isArray(value)
+    ? value
+    : String(value == null ? '' : value).split(',');
+  const cleaned = list.map(item => String(item || '').trim()).filter(Boolean);
+  const unique = [];
+  cleaned.forEach(id => { if (unique.indexOf(id) < 0) unique.push(id); });
+  return unique.slice(0, 10);
 }
 
 // 参加者名が無い過去案件は従来どおり tada / riku として扱う。
