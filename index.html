@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body class="min-h-screen text-slate-100 antialiased selection:bg-acid selection:text-ink">
   <div class="grid-noise min-h-screen">
@@ -23,6 +23,7 @@
           </div>
         </a>
         <div class="flex items-center justify-center gap-2">
+          <button id="version-badge" type="button" class="rounded-full border border-line bg-white/[.015] px-2.5 py-1.5 font-mono text-[10px] font-semibold text-slate-500 transition hover:border-acid/40 hover:text-acid" title="パッチノートを見る">v0.0.0</button>
           <button id="sync-status-pill" type="button" class="sync-pill rounded-full border border-line bg-white/[.015] px-3 py-1.5 text-[11px] font-semibold text-slate-500 transition hover:border-acid/40" title="クリックして接続設定を開く">
             <span id="sync-status-dot" class="sync-dot is-disconnected"></span>
             <span id="sync-status-label">未接続</span>
@@ -272,6 +273,31 @@
       </div>
     </div>
 
+    <div id="update-banner" class="fixed inset-x-0 bottom-0 z-40 hidden px-4 pb-4">
+      <div class="mx-auto flex max-w-2xl flex-wrap items-center gap-3 rounded-xl border border-acid/30 bg-panel p-3.5 shadow-2xl sm:flex-nowrap">
+        <span class="shrink-0 rounded-full bg-acid/15 px-2.5 py-1 font-mono text-[10px] font-bold text-acid">UPDATED</span>
+        <p class="min-w-0 flex-1 text-xs leading-5 text-slate-300">SPLITLABが <span id="update-banner-version" class="font-mono font-bold text-acid">v1.4.0</span> に更新されました。変更点をご確認ください。</p>
+        <div class="flex shrink-0 items-center gap-2">
+          <button id="update-banner-open" type="button" class="btn btn-primary btn-sm">パッチノートを見る</button>
+          <button id="update-banner-close" type="button" class="btn btn-ghost btn-icon h-8 w-8" aria-label="閉じる">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="changelog-modal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/80 p-5 py-10 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
+      <div class="modal-box w-full max-w-2xl rounded-2xl border border-line bg-panel p-6 shadow-2xl sm:p-7">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[10px] uppercase tracking-[.18em] text-acid">Patch notes</p>
+            <h2 id="changelog-title" class="mt-1 text-lg font-bold">更新履歴</h2>
+            <p class="mt-2 font-mono text-[10px] text-slate-500">現在のバージョン: <span id="changelog-current" class="font-bold text-acid">v1.4.0</span></p>
+          </div>
+          <button id="changelog-close" type="button" class="btn btn-ghost btn-icon" aria-label="閉じる">✕</button>
+        </div>
+        <div id="changelog-body" class="mt-5 space-y-5"></div>
+      </div>
+    </div>
+
     <div id="parse-loading-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="parse-loading-title" aria-live="polite">
       <div class="modal-box w-full max-w-md rounded-2xl border border-line bg-panel p-7 text-center shadow-2xl">
         <div class="flex justify-center"><div class="analysis-spinner"></div></div>
@@ -367,6 +393,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

@@ -35,6 +35,54 @@
     const taskList = document.getElementById('task-list');
     const allTasks = categories.flatMap(category => category.tasks.map(task => ({ ...task, category: category.name })));
     const maxPoints = allTasks.reduce((sum, task) => sum + task.points, 0);
+    // ---- バージョンとパッチノート ---------------------------------------
+    // 新しい版を出すときは APP_VERSION を上げ、CHANGELOG の先頭へ追記する。
+    // 保存済みバージョンと違えば、次に開いたときに更新のお知らせが出る。
+    const APP_VERSION = '1.4.0';
+    const SEEN_VERSION_KEY = 'splitlab_seen_version';
+    const CHANGELOG = [
+      {
+        version: '1.4.0',
+        date: '2026-08-26',
+        title: '「元にしたログ」をタップで選べるように',
+        items: [
+          { type: 'new', text: '関わり方で「発展・修正・統合」を選ぶと、その曲の既存ログが一覧で出ます。タップするだけで「何を元にしたか」を残せます（文章で書く必要はありません）。' },
+          { type: 'new', text: '元になった側のログも「他の人に発展された素材」として評価に入るようになりました。' },
+          { type: 'fix', text: 'ログは短くてOKになりました。AIが詳細文の長さや詳しさで評価しないよう修正。たくさん書いた人が有利になりません。' },
+          { type: 'new', text: '「AIで分解」に読み込み画面を追加。経過秒数が出るので、止まっているのか待ちなのかが分かります。' },
+          { type: 'fix', text: '接続切り替えメニューの幅が狭すぎた問題と、スマホで画面が横にずれる問題を修正。' }
+        ]
+      },
+      {
+        version: '1.3.0',
+        date: '2026-08-24',
+        title: '接続先の切り替え',
+        items: [
+          { type: 'new', text: 'ヘッダーから接続先（スプレッドシート）を切り替えられるようになりました。別のユニットの曲と混ざりません。' },
+          { type: 'fix', text: '接続を変えたときに、前の接続の案件が残って別のシートへ送られてしまう問題を修正。' }
+        ]
+      },
+      {
+        version: '1.2.0',
+        date: '2026-08-24',
+        title: '参加者名の設定',
+        items: [
+          { type: 'new', text: '案件ごとに参加者の名前を設定できるようになりました。案件情報の「編集」から変更できます。' },
+          { type: 'note', text: '名前を設定していない過去の案件は、これまで通り tada / riku のまま表示されます。' }
+        ]
+      },
+      {
+        version: '1.1.0',
+        date: '2026-08-18',
+        title: '5軸貢献分析',
+        items: [
+          { type: 'new', text: '分析が5つの軸になりました。物量25% / 音楽的比重30% / 創作主体性20% / 完成・収束寄与20% / 5軸音楽分析5%。' },
+          { type: 'new', text: 'ログ入力に「関わり方」ボタンを追加（任意）。' },
+          { type: 'note', text: '根拠が足りない軸は「判定保留」になり、その軸だけ計算から外れます。無理に50:50を作りません。' }
+        ]
+      }
+    ];
+
     // 参加者は案件ごとに名前を持つ。内部キー(A/B)と表示名を分離しておくことで、
     // 将来3人以上へ拡張するときもキー配列を増やすだけで済むようにする。
     const PERSON_KEYS = ['A', 'B'];
@@ -1244,6 +1292,58 @@
       document.getElementById('sync-status-dot').className = `sync-dot ${meta.dotClass}`;
       document.getElementById('sync-status-label').textContent = detail || meta.text;
     }
+    // ---- パッチノート -------------------------------------------------------
+    const CHANGE_TYPE_LABELS = {
+      new: { label: 'NEW', className: 'bg-acid/15 text-acid' },
+      fix: { label: 'FIX', className: 'bg-sky-400/15 text-sky-300' },
+      note: { label: 'NOTE', className: 'bg-white/[.06] text-slate-400' }
+    };
+
+    function renderChangelog() {
+      document.getElementById('version-badge').textContent = `v${APP_VERSION}`;
+      document.getElementById('changelog-current').textContent = `v${APP_VERSION}`;
+      document.getElementById('changelog-body').innerHTML = CHANGELOG.map((entry, index) => `
+        <section class="rounded-xl border ${index === 0 ? 'border-acid/25 bg-acid/[.035]' : 'border-line'} p-4">
+          <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h3 class="font-mono text-sm font-bold ${index === 0 ? 'text-acid' : 'text-slate-300'}">v${escapeHtml(entry.version)}</h3>
+            <span class="font-mono text-[10px] text-slate-600">${escapeHtml(entry.date)}</span>
+            ${index === 0 ? '<span class="rounded-full bg-acid/15 px-2 py-0.5 font-mono text-[9px] font-bold text-acid">LATEST</span>' : ''}
+          </div>
+          <p class="mt-1 text-sm font-bold">${escapeHtml(entry.title)}</p>
+          <ul class="mt-3 space-y-2">
+            ${entry.items.map(item => {
+              const meta = CHANGE_TYPE_LABELS[item.type] || CHANGE_TYPE_LABELS.note;
+              return `<li class="flex gap-2.5">
+                <span class="mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] font-bold ${meta.className}">${meta.label}</span>
+                <span class="min-w-0 text-xs leading-6 text-slate-400">${escapeHtml(item.text)}</span>
+              </li>`;
+            }).join('')}
+          </ul>
+        </section>`).join('');
+    }
+
+    function openChangelog() {
+      renderChangelog();
+      toggleModal('changelog-modal', true);
+      dismissUpdateBanner();
+    }
+
+    function dismissUpdateBanner() {
+      document.getElementById('update-banner').classList.add('hidden');
+      localStorage.setItem(SEEN_VERSION_KEY, APP_VERSION);
+    }
+
+    // 保存済みバージョンと違えば更新を知らせる。ただし完全な初回利用者には出さない。
+    // 別端末から入った既存利用者は最初の同期で案件が届くため、同期後にも呼ぶ。
+    function checkVersionUpdate() {
+      const seen = localStorage.getItem(SEEN_VERSION_KEY);
+      if (seen === APP_VERSION) return;
+      if (!seen && !projects.length) return; // まだ判断できない（新規かもしれない）ので保留
+
+      document.getElementById('update-banner-version').textContent = `v${APP_VERSION}`;
+      document.getElementById('update-banner').classList.remove('hidden');
+    }
+
     // ---- ワークスペースUI ---------------------------------------------------
     function renderWorkspaceSwitcher() {
       const current = getActiveWorkspace();
@@ -1344,6 +1444,7 @@
       autoSyncTimer = setTimeout(() => syncWithSheets({ silent: true }), delay);
     }
 
+    // 同期で案件が届いてから、初めて「既存利用者」と判断できる場合がある。
     function applyDeltaSync(remoteProjects, deletedProjectIds, full) {
       const deletedIds = new Set((deletedProjectIds || []).map(String));
       const localById = new Map(projects.map(project => [String(project.id), project]));
@@ -1374,6 +1475,7 @@
         dirtyProjectIds.delete(projectId);
       });
       projects = [...nextById.values()];
+      checkVersionUpdate();
     }
 
     async function syncWithSheets(options = {}) {
@@ -1706,6 +1808,15 @@
     document.getElementById('theme-toggle').addEventListener('click', () => {
       applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
     });
+    renderChangelog();
+    document.getElementById('version-badge').addEventListener('click', openChangelog);
+    document.getElementById('changelog-close').addEventListener('click', () => toggleModal('changelog-modal', false));
+    document.getElementById('changelog-modal').addEventListener('click', event => {
+      if (event.target.id === 'changelog-modal') toggleModal('changelog-modal', false);
+    });
+    document.getElementById('update-banner-open').addEventListener('click', openChangelog);
+    document.getElementById('update-banner-close').addEventListener('click', dismissUpdateBanner);
+
     renderWorkspaceSwitcher();
     document.getElementById('workspace-toggle').addEventListener('click', event => {
       event.stopPropagation();
@@ -2083,6 +2194,8 @@
     calculateSplit();
 
     function finishBoot() {
+      // 更新のお知らせはログインゲートを抜けてから出す（ゲートの裏に隠れないように）。
+      checkVersionUpdate();
       renderDashboard();
       refreshSyncStatus();
       scheduleAutoSync(100);

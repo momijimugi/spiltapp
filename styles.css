@@ -313,6 +313,16 @@ button:focus-visible {
 .w-\[min\(92vw\,440px\)\] { width: min(92vw, 440px); }
 .top-20 { top: 5rem; }
 /* プリコンパイル版に含まれていなかったもの。クラス名だけ書いても効かないため補う。 */
+.pb-4 { padding-bottom: 1rem; }
+.px-1\.5 { padding-left: .375rem; padding-right: .375rem; }
+.gap-y-1 { row-gap: .25rem; }
+.items-baseline { align-items: baseline; }
+.space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: .5rem; }
+.space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.25rem; }
+.bg-acid\/15 { background-color: rgba(var(--accent-text-rgb), .15); }
+.bg-sky-400\/15 { background-color: rgba(56, 189, 248, .15); }
+.text-sky-300 { color: #7dd3fc; }
+.border-acid\/25 { border-color: color-mix(in srgb, var(--accent-text) 25%, transparent); }
 .right-0 { right: 0px; }
 .z-40 { z-index: 40; }
 .my-1 { margin-top: .25rem; margin-bottom: .25rem; }
