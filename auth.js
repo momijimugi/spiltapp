@@ -231,11 +231,16 @@ let settingsDocRef = null;
 let firestoreMod = null;
 
 function unavailableSettings() {
+  const no = async () => ({ ok: false, reason: 'unavailable' });
   return {
     available: false,
-    async load() { return { ok: false, reason: 'unavailable' }; },
-    async save() { return { ok: false, reason: 'unavailable' }; },
-    async remove() { return { ok: false, reason: 'unavailable' }; }
+    load: no,
+    upsertWorkspace: no,
+    renameWorkspace: no,
+    removeWorkspace: no,
+    setActive: no,
+    mergeWorkspaces: no,
+    remove: no
   };
 }
 
@@ -292,21 +297,81 @@ function attachSettings(app, uid) {
       }
     },
 
-    async save(doc) {
-      try {
-        const m = await loadFirestore(app);
-        // 保存するのは接続に必要な値だけ。案件・制作ログ・分析結果は送らない。
-        const workspaces = normalizeWorkspaceMap(doc && doc.workspaces);
-        await m.setDoc(ref(m, uid), {
-          activeWorkspaceId: (doc && doc.activeWorkspaceId) || null,
-          workspaces: workspaces,
-          updatedAt: new Date().toISOString()
+    /**
+     * 接続先を1件だけ追加・更新する。
+     * workspaces マップ全体は書き換えず、workspaces.{id} だけを更新するので、
+     * 別端末がその間に追加した接続先が巻き戻ることはない。
+     * 同じ接続先を2端末から触った場合は updatedAt が新しい方を残す。
+     */
+    async upsertWorkspace(id, entry) {
+      return mutate(app, uid, (current, m) => {
+        const value = normalizeWorkspaceMap({ [id]: entry })[id];
+        const existing = current && current.workspaces[id];
+        // 相手側のほうが新しければ何もしない（自分の古い値で上書きしない）。
+        if (existing && existing.updatedAt && value.updatedAt && existing.updatedAt > value.updatedAt) {
+          return null;
+        }
+        return { fields: { [`workspaces.${id}`]: value } };
+      });
+    },
+
+    /** 表示名だけを差し替える。IDと接続情報、他の接続先には触れない。 */
+    async renameWorkspace(id, label, updatedAt) {
+      return mutate(app, uid, (current) => {
+        const existing = current && current.workspaces[id];
+        // Firestore側に無い接続先は、名前だけ書いても意味が無いので触らない。
+        if (!existing) return null;
+        if (existing.updatedAt && updatedAt && existing.updatedAt > updatedAt) return null;
+        return {
+          fields: {
+            [`workspaces.${id}.label`]: String(label || ''),
+            [`workspaces.${id}.updatedAt`]: String(updatedAt || new Date().toISOString())
+          }
+        };
+      });
+    },
+
+    /** 接続先を1件だけ消す。他の接続先は残す。 */
+    async removeWorkspace(id, nextActiveId) {
+      return mutate(app, uid, (current, m) => {
+        if (!current || !current.workspaces[id]) return null;
+        const fields = { [`workspaces.${id}`]: m.deleteField() };
+        // 消したものがactiveだったときだけ、activeも同時に付け替える。
+        if (current.activeWorkspaceId === id) {
+          fields.activeWorkspaceId = (nextActiveId && current.workspaces[nextActiveId]) ? nextActiveId : null;
+        }
+        return { fields };
+      });
+    },
+
+    /** activeWorkspaceId だけを変える。 */
+    async setActive(id) {
+      return mutate(app, uid, (current) => {
+        if (current && current.activeWorkspaceId === id) return null;
+        return { fields: { activeWorkspaceId: id || null } };
+      });
+    },
+
+    /**
+     * 初回移行など、複数件をまとめて入れる場面。
+     * Firestore側の現在値をトランザクション内で読み、既にある接続先は残したまま
+     * 足りないものだけを足す。既存のほうが新しければそちらを優先する。
+     */
+    async mergeWorkspaces(entries, activeId) {
+      return mutate(app, uid, (current) => {
+        const incoming = normalizeWorkspaceMap(entries);
+        const fields = {};
+        Object.keys(incoming).forEach((id) => {
+          const existing = current && current.workspaces[id];
+          if (existing && existing.updatedAt && incoming[id].updatedAt
+            && existing.updatedAt > incoming[id].updatedAt) return;
+          fields[`workspaces.${id}`] = incoming[id];
         });
-        return { ok: true };
-      } catch (e) {
-        console.error('[SPLITLAB] 接続設定の保存に失敗', e);
-        return { ok: false, reason: 'firestore', error: e };
-      }
+        // activeは、Firestore側にまだ無いときだけこちらの値を入れる。
+        if (activeId && !(current && current.activeWorkspaceId)) fields.activeWorkspaceId = activeId;
+        if (!Object.keys(fields).length) return null;
+        return { fields };
+      });
     },
 
     async remove() {
@@ -333,6 +398,61 @@ async function loadFirestore(app) {
   if (!firestoreMod) firestoreMod = await import(`${SDK}/firebase-firestore.js`);
   if (!firestore) firestore = firestoreMod.getFirestore(app);
   return firestoreMod;
+}
+
+/**
+ * 接続設定の部分更新。
+ *
+ * workspaces マップ全体を書き戻すと、別端末がその間に追加・改名した接続先を
+ * 古い手元の状態で巻き戻してしまう。そこでトランザクションの中で
+ *   1. Firestoreの現在値を読む
+ *   2. 更新する「フィールドだけ」を決める（workspaces.{id} などのフィールドパス）
+ *   3. tx.update で、そのフィールドだけを書く
+ * という手順にしている。触っていない接続先は読み書きの対象にならないので消えない。
+ *
+ * plan() が null を返した場合は「書く必要が無い」とみなして何もしない。
+ * ドキュメントがまだ無いときだけ、tx.set で新規作成する。
+ */
+async function mutate(app, uid, plan) {
+  try {
+    const m = await loadFirestore(app);
+    const docRef = ref(m, uid);
+    const result = await m.runTransaction(firestore, async (tx) => {
+      const snap = await tx.get(docRef);
+      const current = snap.exists()
+        ? {
+            activeWorkspaceId: typeof (snap.data() || {}).activeWorkspaceId === 'string'
+              ? snap.data().activeWorkspaceId : null,
+            workspaces: normalizeWorkspaceMap((snap.data() || {}).workspaces)
+          }
+        : null;
+
+      const step = plan(current, m);
+      if (!step || !step.fields || !Object.keys(step.fields).length) return 'skipped';
+
+      if (!current) {
+        // 初回作成。フィールドパスは使えないので、ここだけ組み立てて書く。
+        const created = { activeWorkspaceId: null, workspaces: {}, updatedAt: new Date().toISOString() };
+        Object.keys(step.fields).forEach((path) => {
+          const value = step.fields[path];
+          if (path === 'activeWorkspaceId') { created.activeWorkspaceId = value; return; }
+          const id = path.split('.')[1];
+          if (!id) return;
+          // 新規作成時に「消す」指示が来ることは無いので無視してよい。
+          if (path === `workspaces.${id}`) created.workspaces[id] = value;
+        });
+        tx.set(docRef, created);
+        return 'created';
+      }
+
+      tx.update(docRef, { ...step.fields, updatedAt: new Date().toISOString() });
+      return 'updated';
+    });
+    return { ok: true, result };
+  } catch (e) {
+    console.error('[SPLITLAB] 接続設定の更新に失敗', e);
+    return { ok: false, reason: 'firestore', error: e };
+  }
 }
 
 /**

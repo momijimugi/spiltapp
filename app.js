@@ -1332,53 +1332,91 @@
       return (saved && saved.apiKey) || '';
     }
 
-    /** 接続確認に成功した接続先をFirestoreへ書く内容に反映する。 */
-    function cloudUpsertWorkspace(workspace, apiUrl, apiKey) {
-      if (!workspace || !apiUrl || !apiKey) return;
-      cloudDoc.workspaces[workspace.id] = {
+    // Firestoreへの書き込みは「できたら嬉しい」処理。失敗しても本体は止めず、
+    // Apps Scriptの同期エラーとは区別できる文言で知らせるだけにする。
+    // 書き込みは必ず対象のフィールドだけを更新する（auth.js 側のトランザクション）。
+    // workspaces マップ全体を書き戻さないので、別端末が追加・改名した接続先を
+    // こちらの古い状態で巻き戻すことがない。
+    let cloudSaveChain = Promise.resolve();
+    function cloudRun(label, run, options = {}) {
+      const settings = cloudSettings();
+      if (!settings) return Promise.resolve(false);
+      cloudSaveChain = cloudSaveChain.then(async () => {
+        const res = await run(settings);
+        if (!res.ok && !options.silent) {
+          showToast(`接続設定をGoogleアカウントへ${label}できませんでした（Firestore）。この端末では引き続き利用できます。`);
+        }
+        return res.ok;
+      }).catch(() => false);
+      return cloudSaveChain;
+    }
+
+    /** 接続確認に成功した接続先を1件だけ保存する。 */
+    function cloudSaveWorkspace(workspace, apiUrl, apiKey, options = {}) {
+      if (!workspace || !apiUrl || !apiKey) return Promise.resolve(false);
+      const entry = {
         label: workspace.label || '',
         apiUrl: apiUrl,
         apiKey: apiKey,
         primary: workspace.primary === true,
         updatedAt: new Date().toISOString()
       };
+      const previous = cloudDoc.workspaces[workspace.id];
+      const unchanged = previous && previous.label === entry.label && previous.apiUrl === entry.apiUrl
+        && previous.apiKey === entry.apiKey && previous.primary === entry.primary;
+      cloudDoc.workspaces[workspace.id] = unchanged ? previous : entry;
+      const setActive = options.setActive === true;
+      if (setActive) cloudDoc.activeWorkspaceId = workspace.id;
+
+      return cloudRun('保存', async settings => {
+        // 中身が変わっていないなら、接続先そのものは書き直さない。
+        if (!unchanged) {
+          const res = await settings.upsertWorkspace(workspace.id, entry);
+          if (!res.ok) return res;
+        }
+        if (!setActive) return { ok: true };
+        return settings.setActive(workspace.id);
+      }, options);
     }
 
-    function cloudRemoveWorkspace(workspaceId) {
-      delete cloudDoc.workspaces[workspaceId];
-      if (cloudDoc.activeWorkspaceId === workspaceId) cloudDoc.activeWorkspaceId = null;
-    }
-
+    /** 表示名だけを更新する。IDと接続情報、他の接続先には触れない。 */
     function cloudRenameWorkspace(workspace) {
       const entry = workspace && cloudDoc.workspaces[workspace.id];
-      if (!entry) return;
+      if (!entry) return Promise.resolve(false);
+      const updatedAt = new Date().toISOString();
       entry.label = workspace.label || '';
-      entry.updatedAt = new Date().toISOString();
+      entry.updatedAt = updatedAt;
+      return cloudRun('保存', settings => settings.renameWorkspace(workspace.id, entry.label, updatedAt));
     }
 
-    /** activeWorkspaceId をクラウド側にも反映する。未確認の接続先は選ばない。 */
+    /** 接続先を1件だけ消す。他の接続先は残す。 */
+    function cloudRemoveWorkspace(workspaceId, nextActiveId) {
+      const existed = Boolean(cloudDoc.workspaces[workspaceId]);
+      delete cloudDoc.workspaces[workspaceId];
+      if (cloudDoc.activeWorkspaceId === workspaceId) {
+        cloudDoc.activeWorkspaceId = (nextActiveId && cloudDoc.workspaces[nextActiveId]) ? nextActiveId : null;
+      }
+      if (!existed) return Promise.resolve(false);
+      return cloudRun('反映', settings => settings.removeWorkspace(workspaceId, nextActiveId || null));
+    }
+
+    /** activeWorkspaceId だけを変える。未確認の接続先は選ばない。 */
     function cloudSetActive(workspaceId) {
-      if (cloudDoc.workspaces[workspaceId]) cloudDoc.activeWorkspaceId = workspaceId;
+      if (!cloudDoc.workspaces[workspaceId]) return Promise.resolve(false);
+      if (cloudDoc.activeWorkspaceId === workspaceId) return Promise.resolve(true);
+      cloudDoc.activeWorkspaceId = workspaceId;
+      return cloudRun('保存', settings => settings.setActive(workspaceId));
     }
 
-    // Firestoreへの書き込みは「できたら嬉しい」処理。失敗しても本体は止めず、
-    // Apps Scriptの同期エラーとは区別できる文言で知らせるだけにする。
-    let cloudSaveChain = Promise.resolve();
-    function cloudPersist(options = {}) {
-      const settings = cloudSettings();
-      if (!settings) return Promise.resolve(false);
-      const snapshot = {
-        activeWorkspaceId: cloudDoc.activeWorkspaceId,
-        workspaces: JSON.parse(JSON.stringify(cloudDoc.workspaces))
-      };
-      cloudSaveChain = cloudSaveChain.then(async () => {
-        const res = await settings.save(snapshot);
-        if (!res.ok && !options.silent) {
-          showToast('接続設定をGoogleアカウントへ保存できませんでした（Firestore）。この端末では引き続き利用できます。');
-        }
-        return res.ok;
-      }).catch(() => false);
-      return cloudSaveChain;
+    /**
+     * 初回移行など、複数件をまとめて入れる場面。
+     * Firestore側の現在値をトランザクションの中で読んでからmergeするので、
+     * 別端末が先に登録した接続先を消してしまうことはない。
+     */
+    function cloudMergeWorkspaces(entries, activeId, options = {}) {
+      Object.keys(entries).forEach(id => { cloudDoc.workspaces[id] = entries[id]; });
+      if (activeId && !cloudDoc.activeWorkspaceId) cloudDoc.activeWorkspaceId = activeId;
+      return cloudRun('保存', settings => settings.mergeWorkspaces(entries, activeId || null), options);
     }
 
     /**
@@ -1541,9 +1579,7 @@
       showToast(`「${workspace ? workspace.label : ''}」に切り替えました`);
       // 接続確認が取れている接続先だけ、クラウド側のactiveも動かす。
       if (targetUrl && targetKey) {
-        cloudUpsertWorkspace(target, targetUrl, targetKey);
-        cloudSetActive(workspaceId);
-        cloudPersist();
+        cloudSaveWorkspace(target, targetUrl, targetKey, { setActive: true });
       }
       if (getStoredApiConnection()) syncWithSheets({ silent: true });
       else requestApiConnection({ force: true }).then(connection => { if (connection) syncWithSheets(); });
@@ -1956,9 +1992,9 @@
         // 追加したばかりの空ワークスペースは残さない。
         if (workspace && !workspace.primary && !workspace.apiUrl && !projects.length) {
           workspaces = workspaces.filter(item => item.id !== workspace.id);
-          cloudRemoveWorkspace(workspace.id);
+          cloudRemoveWorkspace(workspace.id, duplicate.id);
         }
-        cloudUpsertWorkspace(duplicate, apiUrl, apiKey);
+        cloudSaveWorkspace(duplicate, apiUrl, apiKey, { setActive: true });
         closeApiModal(null);
         // 接続確認はもう済んでいるので、切り替え側では繰り返さない。
         switchWorkspace(duplicate.id, { skipDirtyCheck: true, skipVerify: true });
@@ -1973,9 +2009,7 @@
       renderWorkspaceSwitcher();
       refreshSyncStatus();
       // 接続できた設定だけをGoogleアカウント側にも残す。
-      cloudUpsertWorkspace(workspace, apiUrl, apiKey);
-      cloudSetActive(activeWorkspaceId);
-      cloudPersist();
+      cloudSaveWorkspace(workspace, apiUrl, apiKey, { setActive: true });
       closeApiModal({ apiUrl, apiKey });
     });
     document.getElementById('api-cancel').addEventListener('click', () => closeApiModal(null));
@@ -2025,7 +2059,6 @@
       toggleWorkspaceMenu(false);
       // ワークスペースIDは変えず、表示名だけをFirestoreにも反映する。
       cloudRenameWorkspace(workspace);
-      cloudPersist();
     });
     document.getElementById('workspace-remove').addEventListener('click', () => {
       const workspace = getActiveWorkspace();
@@ -2038,13 +2071,11 @@
       workspaces = workspaces.filter(item => item.id !== removedId);
       activeWorkspaceId = '';
       persistWorkspaces();
-      // Firestore側の接続設定も消す。他の接続先の案件データには触れない。
-      cloudRemoveWorkspace(removedId);
       // 残りがあれば別の接続先へ、0件なら未接続へ戻す。
       const next = workspaces[0];
+      // Firestore側は該当の接続先だけを消す。他端末が追加したものには触れない。
+      cloudRemoveWorkspace(removedId, next ? next.id : null);
       if (!next) {
-        cloudDoc.activeWorkspaceId = null;
-        cloudPersist();
         reloadWorkspaceLocalState();
         renderWorkspaceSwitcher();
         showDashboard();
@@ -2052,7 +2083,6 @@
         requestApiConnection({ gate: true }).then(connection => { if (connection) syncWithSheets(); });
         return;
       }
-      cloudPersist();
       switchWorkspace(next.id, { skipDirtyCheck: true });
     });
     document.getElementById('sync-status-pill').addEventListener('click', async () => {
@@ -2425,6 +2455,7 @@
      */
     async function migrateLocalWorkspacesToCloud() {
       let migrated = 0;
+      const pending = {};
       for (const workspace of workspaces) {
         const apiUrl = apiUrlOf(workspace);
         const apiKey = apiKeyOf(workspace);
@@ -2435,13 +2466,19 @@
           // 通らない接続先は保存しない。
           continue;
         }
-        cloudUpsertWorkspace(workspace, apiUrl, apiKey);
+        pending[workspace.id] = {
+          label: workspace.label || '',
+          apiUrl: apiUrl,
+          apiKey: apiKey,
+          primary: workspace.primary === true,
+          updatedAt: new Date().toISOString()
+        };
         migrated += 1;
       }
       if (!migrated) return false;
-      cloudSetActive(activeWorkspaceId);
-      if (!cloudDoc.activeWorkspaceId) cloudSetActive(Object.keys(cloudDoc.workspaces)[0]);
-      await cloudPersist({ silent: true });
+      const activeId = pending[activeWorkspaceId] ? activeWorkspaceId : Object.keys(pending)[0];
+      // 既にFirestoreへ登録済みの接続先は残したままmergeする。
+      await cloudMergeWorkspaces(pending, activeId, { silent: true });
       return true;
     }
 
