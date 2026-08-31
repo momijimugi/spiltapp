@@ -514,3 +514,121 @@ body.is-project-view #project-view { flex: 1 1 auto; min-height: 0; display: fle
 }
 ::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
 ::-webkit-scrollbar-corner { background: transparent; }
+
+/* --- auth gate ------------------------------------------------------------
+   認証まわりは既存のスタイルに触らず、この節だけで完結させている。
+   表示の出し分けは <html data-auth> の状態だけを見る。
+     checking / restoring / out / error … 本体を描かない
+     in                                … 本体だけを描く                    */
+#auth-checking, #auth-restoring, #auth-gate, #auth-fatal { display: none; }
+html[data-auth="checking"] #auth-checking { display: flex; }
+html[data-auth="restoring"] #auth-restoring { display: flex; }
+html[data-auth="out"] #auth-gate { display: flex; }
+html[data-auth="error"] #auth-fatal { display: flex; }
+/* 認証と接続の復元が済むまで本体を描かない（一瞬でも中身が見えないように） */
+html[data-auth="checking"] .grid-noise,
+html[data-auth="restoring"] .grid-noise,
+html[data-auth="out"] .grid-noise,
+html[data-auth="error"] .grid-noise { display: none; }
+
+.auth-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--app-bg);
+}
+.auth-checking-note {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.auth-card {
+  width: min(24rem, 100%);
+  padding: 2rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .12);
+  text-align: center;
+}
+.auth-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: .9rem;
+  border-radius: .6rem;
+  border: 1px solid rgba(var(--accent-text-rgb), .4);
+  background: rgba(var(--accent-text-rgb), .1);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.auth-title {
+  margin-top: .3rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -.035em;
+  color: var(--text-strong);
+}
+.auth-lead {
+  margin-top: .5rem;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.auth-signin { margin-top: 1.4rem; width: 100%; justify-content: center; }
+.auth-error {
+  margin-top: .9rem;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--danger);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.auth-error.hidden { display: none; }
+
+/* ヘッダーのアカウント表示 */
+.auth-user {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding-right: .5rem;
+  border-right: 1px solid var(--line-soft);
+}
+.auth-user.hidden { display: none; }
+.auth-user-photo, .auth-user-initial {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.auth-user-photo { object-fit: cover; }
+.auth-user-photo.hidden, .auth-user-initial.hidden { display: none; }
+.auth-user-initial {
+  display: grid;
+  place-items: center;
+  background: rgba(var(--accent-text-rgb), .2);
+  color: var(--accent-text);
+  font-size: 10px;
+  font-weight: 800;
+}
+.auth-user-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 狭い画面では名前を畳んで、アイコンとログアウトだけ残す */
+@media (max-width: 640px) {
+  .auth-user-name { display: none; }
+}

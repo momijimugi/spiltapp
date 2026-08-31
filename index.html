@@ -6,12 +6,56 @@
   <meta name="description" content="音楽制作コライトの貢献度を、制作ログの物量・音楽的比重・創作主体性・完成寄与・5軸音楽分析から可視化するスプリット管理アプリ。">
   <title>SPLITLAB — Co-write Split Calculator</title>
   <script>(function(){try{var t=localStorage.getItem('splitlab_theme');if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;}catch(e){}})();</script>
+  <!-- 認証状態が決まるまでは本体を描かない。auth.js が data-auth を進める。 -->
+  <script>
+    document.documentElement.dataset.auth = 'checking';
+    // auth.js 自体が読めなかった場合に「確認中…」で固まらないための保険。
+    // 設定済み環境では本体を開かず、認証エラー画面を出す（fail-closed）。
+    setTimeout(function () {
+      if (window.__SPLITLAB_AUTH_BOOTED) return;
+      var el = document.getElementById('auth-fatal-detail');
+      if (el) el.textContent = 'ログインの読み込みが完了しませんでした（auth.js）。通信環境を確認して再読み込みしてください。';
+      document.documentElement.dataset.auth = 'error';
+    }, 20000);
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body class="min-h-screen text-slate-100 antialiased selection:bg-acid selection:text-ink">
+  <!-- ============ AUTH GATE ============
+       認証状態が決まるまでは本体もログイン画面も出さない（checking）。
+       未ログインならログイン画面だけ、ログイン済みなら本体だけが見える。 -->
+  <div id="auth-checking" class="auth-screen">
+    <p class="auth-checking-note">確認中…</p>
+  </div>
+
+  <div id="auth-restoring" class="auth-screen">
+    <p class="auth-checking-note">接続設定を復元しています…</p>
+  </div>
+
+  <div id="auth-gate" class="auth-screen">
+    <div class="auth-card">
+      <span class="auth-mark">SL</span>
+      <p class="font-mono text-[10px] uppercase tracking-[.2em] text-slate-500">Co-write split calculator</p>
+      <h1 class="auth-title">SPLITLAB</h1>
+      <p class="auth-lead">Googleアカウントでログインすると、接続先（Apps Script）の設定が自動で復元されます。</p>
+      <button id="auth-signin" type="button" class="btn btn-primary btn-md auth-signin">Googleでログイン</button>
+      <p id="auth-error" class="auth-error hidden"></p>
+    </div>
+  </div>
+
+  <div id="auth-fatal" class="auth-screen">
+    <div class="auth-card">
+      <span class="auth-mark">!</span>
+      <h1 class="auth-title">ログインを開始できません</h1>
+      <p class="auth-lead">認証を確立できなかったため、SPLITLABを開けません。</p>
+      <p id="auth-fatal-detail" class="auth-error"></p>
+      <button id="auth-fatal-retry" type="button" class="btn btn-primary btn-md auth-signin">再読み込み</button>
+    </div>
+  </div>
+
   <div class="grid-noise min-h-screen">
     <header class="border-b border-white/5">
       <div class="header-grid mx-auto max-w-6xl px-5 py-3 sm:px-8">
@@ -43,6 +87,12 @@
           </div>
         </div>
         <div class="flex items-center gap-2">
+          <span id="auth-user" class="auth-user hidden">
+            <img id="auth-user-photo" class="auth-user-photo hidden" alt="" referrerpolicy="no-referrer">
+            <span id="auth-user-initial" class="auth-user-initial hidden"></span>
+            <span id="auth-user-name" class="auth-user-name"></span>
+            <button id="auth-signout" type="button" class="btn btn-ghost btn-sm">ログアウト</button>
+          </span>
           <button id="theme-toggle" type="button" class="btn btn-ghost btn-icon" aria-label="ライト/ダーク切り替え">🌙</button>
           <button id="nav-dashboard" type="button" class="btn btn-secondary btn-sm">案件一覧</button>
           <button id="sync-btn" type="button" class="btn btn-ghost btn-sm">自動同期</button>
@@ -202,7 +252,7 @@
         <label class="mt-4 block"><span class="mb-2 block text-xs text-slate-400">Apps Script Web App URL</span><input id="api-url-input" type="url" required autocomplete="url" class="w-full rounded-lg border border-line bg-black/30 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="https://script.google.com/macros/s/.../exec"></label>
         <label class="mt-4 block"><span class="mb-2 block text-xs text-slate-400">接続キー</span><input id="api-key-input" type="password" required autocomplete="off" class="w-full rounded-lg border border-line bg-black/30 px-4 py-3 text-sm outline-none focus:border-acid/50" placeholder="Script PropertiesのAPI_KEY"></label>
         <p id="api-modal-error" class="mt-3 hidden text-xs text-rose-400"></p>
-        <div class="mt-6 flex justify-end gap-3"><button id="api-cancel" type="button" class="btn btn-ghost btn-sm">キャンセル</button><button type="submit" class="btn btn-primary btn-sm">接続する</button></div>
+        <div class="mt-6 flex justify-end gap-3"><button id="api-cancel" type="button" class="btn btn-ghost btn-sm">キャンセル</button><button id="api-submit" type="submit" class="btn btn-primary btn-sm">接続する</button></div>
       </form>
     </div>
 
@@ -393,6 +443,8 @@
     </div>
   </div>
 
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
+  <!-- 認証はESモジュール。app.js の後に実行され、ログイン後に SPLITLAB_APP.start() を呼ぶ。 -->
+  <script type="module" src="auth.js?v=11"></script>
 </body>
 </html>

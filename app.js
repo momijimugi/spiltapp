@@ -38,9 +38,20 @@
     // ---- バージョンとパッチノート ---------------------------------------
     // 新しい版を出すときは APP_VERSION を上げ、CHANGELOG の先頭へ追記する。
     // 保存済みバージョンと違えば、次に開いたときに更新のお知らせが出る。
-    const APP_VERSION = '1.4.0';
+    const APP_VERSION = '1.5.0';
     const SEEN_VERSION_KEY = 'splitlab_seen_version';
     const CHANGELOG = [
+      {
+        version: '1.5.0',
+        date: '2026-08-31',
+        title: 'Googleログインで接続先が自動で戻るように',
+        items: [
+          { type: 'new', text: 'Googleアカウントでログインするようになりました。接続先（Apps ScriptのURLと接続キー）がアカウントに保存され、次からは自動でつながります。' },
+          { type: 'new', text: '別のPCやブラウザでも、同じGoogleアカウントでログインすれば同じ接続先がそのまま出ます。URLと接続キーの入力は初回だけです。' },
+          { type: 'fix', text: '接続先を追加・切り替えるときに、実際につながるかを先に確認するようになりました。つながらない設定は保存されず、切り替えも行われません。' },
+          { type: 'note', text: '案件・制作ログ・分析結果はこれまで通りスプレッドシートとこの端末に保存されます。保存先は変わっていません。' }
+        ]
+      },
       {
         version: '1.4.0',
         date: '2026-08-26',
@@ -988,7 +999,10 @@
       document.getElementById('api-url-input').value = savedUrl;
       document.getElementById('api-label-input').value = getActiveWorkspace()?.label || '';
       document.getElementById('api-key-input').value = '';
-      document.getElementById('api-modal-error').classList.add('hidden');
+      const modalError = document.getElementById('api-modal-error');
+      // 自動復元に失敗した理由（Firestore / Apps Script）をここで伝える。
+      modalError.textContent = restoreNotice ? restoreNotice.text : '';
+      modalError.classList.toggle('hidden', !restoreNotice);
       const copy = gate ? API_MODAL_COPY.gate : API_MODAL_COPY.normal;
       document.getElementById('api-modal-title').textContent = copy.title;
       document.getElementById('api-modal-desc').textContent = copy.desc;
@@ -1281,6 +1295,108 @@
       return apiUrl && apiKey ? { apiUrl, apiKey } : null;
     }
 
+    // ---- Firestore（Googleアカウント）への接続設定の同期 --------------------
+    // 保存するのは「接続に必要な値」だけ。案件・制作ログ・分析結果・UI設定は
+    // これまで通りlocalStorage / Apps Script(Spreadsheet)側に置いたままにする。
+    // Firestoreの保存先は users/{uid}/appSettings/splitapp（auth.js が管理）。
+    //
+    // cloudDoc はFirestoreへ書く内容の手元の写し。接続確認に成功した接続先だけを
+    // ここへ入れ、確認できていないものは書かない。
+    let cloudDoc = { activeWorkspaceId: null, workspaces: {} };
+    // 自動復元が失敗した理由。Firestore側かApps Script側かを区別して残す。
+    let restoreNotice = null;
+
+    function cloudSettings() {
+      const auth = window.SPLITLAB_AUTH;
+      return auth && auth.settings && auth.settings.available ? auth.settings : null;
+    }
+
+    // ワークスペース単位のキー参照（引数版）。既定ワークスペースは旧キーのまま。
+    function apiKeyStorageKeyFor(workspace) {
+      return !workspace || workspace.primary ? API_KEY_STORAGE : `${API_KEY_STORAGE}::${workspace.id}`;
+    }
+
+    function apiUrlOf(workspace) {
+      if (!workspace) return '';
+      if (workspace.primary && !workspace.apiUrl) return localStorage.getItem(API_URL_KEY) || '';
+      return workspace.apiUrl || '';
+    }
+
+    // 接続キーはこの端末ではsessionStorage（タブを閉じると消える）。
+    // Firestoreから復元したぶんはcloudDoc側にも残るので、そちらも見る。
+    function apiKeyOf(workspace) {
+      if (!workspace) return '';
+      const local = sessionStorage.getItem(apiKeyStorageKeyFor(workspace)) || '';
+      if (local) return local;
+      const saved = cloudDoc.workspaces[workspace.id];
+      return (saved && saved.apiKey) || '';
+    }
+
+    /** 接続確認に成功した接続先をFirestoreへ書く内容に反映する。 */
+    function cloudUpsertWorkspace(workspace, apiUrl, apiKey) {
+      if (!workspace || !apiUrl || !apiKey) return;
+      cloudDoc.workspaces[workspace.id] = {
+        label: workspace.label || '',
+        apiUrl: apiUrl,
+        apiKey: apiKey,
+        primary: workspace.primary === true,
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    function cloudRemoveWorkspace(workspaceId) {
+      delete cloudDoc.workspaces[workspaceId];
+      if (cloudDoc.activeWorkspaceId === workspaceId) cloudDoc.activeWorkspaceId = null;
+    }
+
+    function cloudRenameWorkspace(workspace) {
+      const entry = workspace && cloudDoc.workspaces[workspace.id];
+      if (!entry) return;
+      entry.label = workspace.label || '';
+      entry.updatedAt = new Date().toISOString();
+    }
+
+    /** activeWorkspaceId をクラウド側にも反映する。未確認の接続先は選ばない。 */
+    function cloudSetActive(workspaceId) {
+      if (cloudDoc.workspaces[workspaceId]) cloudDoc.activeWorkspaceId = workspaceId;
+    }
+
+    // Firestoreへの書き込みは「できたら嬉しい」処理。失敗しても本体は止めず、
+    // Apps Scriptの同期エラーとは区別できる文言で知らせるだけにする。
+    let cloudSaveChain = Promise.resolve();
+    function cloudPersist(options = {}) {
+      const settings = cloudSettings();
+      if (!settings) return Promise.resolve(false);
+      const snapshot = {
+        activeWorkspaceId: cloudDoc.activeWorkspaceId,
+        workspaces: JSON.parse(JSON.stringify(cloudDoc.workspaces))
+      };
+      cloudSaveChain = cloudSaveChain.then(async () => {
+        const res = await settings.save(snapshot);
+        if (!res.ok && !options.silent) {
+          showToast('接続設定をGoogleアカウントへ保存できませんでした（Firestore）。この端末では引き続き利用できます。');
+        }
+        return res.ok;
+      }).catch(() => false);
+      return cloudSaveChain;
+    }
+
+    /**
+     * 接続確認。Apps Scriptへ空の差分同期を投げ、URLと接続キーが通ることだけを見る。
+     * 案件は1件も送らないので、この呼び出しで別シートへデータが渡ることはない。
+     */
+    async function verifyConnection(apiUrl, apiKey) {
+      if (!apiUrl || !apiKey) throw new Error('Apps ScriptのURLと接続キーが未設定です。');
+      const payload = { changes: [], since: new Date().toISOString(), full: false };
+      const body = new URLSearchParams({ action: 'syncDelta', apiKey, payload: JSON.stringify(payload) });
+      const result = await postToAppsScript(apiUrl, body, { timeoutMs: 20000, timeoutLabel: '接続確認' });
+      if (!result.ok) {
+        if (result.error === 'Unsupported action.') throw new Error('Apps Scriptが旧バージョンです。最新のCode.gsを新しいバージョンとして再デプロイしてください。');
+        throw new Error(result.error || '接続確認に失敗しました。');
+      }
+      return true;
+    }
+
     const SYNC_STATUS_META = {
       disconnected: { dotClass: 'is-disconnected', text: '未接続' },
       syncing: { dotClass: 'is-syncing', text: '同期中…' },
@@ -1355,7 +1471,7 @@
           ${active ? '<span class="shrink-0 font-mono text-[10px]">✓</span>' : ''}
         </button>`;
       }).join('');
-      document.getElementById('workspace-remove').classList.toggle('hidden', workspaces.length < 2);
+      document.getElementById('workspace-remove').classList.toggle('hidden', !workspaces.length);
     }
 
     function toggleWorkspaceMenu(show) {
@@ -1365,9 +1481,23 @@
       document.getElementById('workspace-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
+    // 保存キーが切り替わったあとに、そのワークスペースの状態を読み直す。
+    // 案件・未同期リスト・同期時刻はすべてワークスペースごとに分かれている。
+    function reloadWorkspaceLocalState() {
+      projects = loadProjects().map(normalizeProject);
+      dirtyProjectIds = loadDirtyProjectIds();
+      lastRemoteSyncAt = localStorage.getItem(workspaceKey(LAST_REMOTE_SYNC_KEY)) || '';
+      activeProjectId = null;
+    }
+
     // 未同期の案件を別シートへ持ち込まないよう、切り替え前に必ず確認する。
-    function switchWorkspace(workspaceId, options = {}) {
+    // さらに、切り替え先の接続確認が通るまでactiveWorkspaceIdを動かさない。
+    // 確認に失敗した場合は元のワークスペースのまま留まるので、
+    // 「Aの案件をBのSpreadsheetへ送る」事故が起きない。
+    async function switchWorkspace(workspaceId, options = {}) {
       if (!workspaceId || workspaceId === activeWorkspaceId) { toggleWorkspaceMenu(false); return; }
+      const target = workspaces.find(workspace => workspace.id === workspaceId);
+      if (!target) { toggleWorkspaceMenu(false); return; }
       const activeProject = getActiveProject();
       if (activeProject) {
         captureProjectFields(activeProject);
@@ -1377,21 +1507,44 @@
         const proceed = confirm(`未同期の案件が${dirtyProjectIds.size}件あります。\n切り替えても消えませんが、この接続に戻ってから同期してください。\n切り替えますか？`);
         if (!proceed) { toggleWorkspaceMenu(false); return; }
       }
+
+      // 接続情報がそろっているときだけ、切り替える前にApps Scriptへ確認を取る。
+      // まだURL・接続キーが無い（追加したばかりの）接続先は、
+      // これまで通り切り替えてから接続設定モーダルで入力してもらう。
+      const targetUrl = apiUrlOf(target);
+      const targetKey = apiKeyOf(target);
+      if (options.skipVerify !== true && targetUrl && targetKey) {
+        toggleWorkspaceMenu(false);
+        setSyncStatus('syncing', `「${target.label}」へ接続を確認中…`);
+        try {
+          await verifyConnection(targetUrl, targetKey);
+        } catch (error) {
+          // activeWorkspaceId は動かしていない。今の接続先のままにする。
+          refreshSyncStatus();
+          showToast(`「${target.label}」へ接続できませんでした: ${error.message}`, { persistent: true });
+          return;
+        }
+        // 確認できた接続キーはこの端末にも置いて、次の操作で再入力させない。
+        sessionStorage.setItem(apiKeyStorageKeyFor(target), targetKey);
+      }
+
       clearTimeout(saveTimer);
       clearTimeout(autoSyncTimer);
       activeWorkspaceId = workspaceId;
       persistWorkspaces();
-      // 保存キーが切り替わるので、状態はすべて読み直す。
-      projects = loadProjects().map(normalizeProject);
-      dirtyProjectIds = loadDirtyProjectIds();
-      lastRemoteSyncAt = localStorage.getItem(workspaceKey(LAST_REMOTE_SYNC_KEY)) || '';
-      activeProjectId = null;
+      reloadWorkspaceLocalState();
       toggleWorkspaceMenu(false);
       renderWorkspaceSwitcher();
       showDashboard();
       refreshSyncStatus();
       const workspace = getActiveWorkspace();
       showToast(`「${workspace ? workspace.label : ''}」に切り替えました`);
+      // 接続確認が取れている接続先だけ、クラウド側のactiveも動かす。
+      if (targetUrl && targetKey) {
+        cloudUpsertWorkspace(target, targetUrl, targetKey);
+        cloudSetActive(workspaceId);
+        cloudPersist();
+      }
       if (getStoredApiConnection()) syncWithSheets({ silent: true });
       else requestApiConnection({ force: true }).then(connection => { if (connection) syncWithSheets(); });
     }
@@ -1766,28 +1919,49 @@
       hideToast();
     });
 
-    document.getElementById('api-form').addEventListener('submit', event => {
+    document.getElementById('api-form').addEventListener('submit', async event => {
       event.preventDefault();
       const apiUrl = document.getElementById('api-url-input').value.trim();
       const apiKey = document.getElementById('api-key-input').value;
+      const error = document.getElementById('api-modal-error');
       if (!/^https:\/\/script\.google\.com\//.test(apiUrl)) {
-        const error = document.getElementById('api-modal-error');
         error.textContent = '有効なApps Script Web App URLを入力してください。';
         error.classList.remove('hidden');
         return;
       }
       const label = document.getElementById('api-label-input').value.trim();
       const workspace = getActiveWorkspace();
+      const submit = document.getElementById('api-submit');
+
+      // 保存する前に必ず接続確認を通す。通らなかった設定は
+      // localStorageにもFirestoreにも書かない。
+      error.classList.add('hidden');
+      submit.disabled = true;
+      submit.textContent = '接続を確認中…';
+      try {
+        await verifyConnection(apiUrl, apiKey);
+      } catch (e) {
+        error.textContent = e.message;
+        error.classList.remove('hidden');
+        return;
+      } finally {
+        submit.disabled = false;
+        submit.textContent = '接続する';
+      }
+
       // 同じURLが別ワークスペースに登録済みなら、新規追加せずそちらへ切り替える。
-      const duplicate = workspaces.find(item => item.id !== activeWorkspaceId && item.apiUrl === apiUrl);
+      const duplicate = workspaces.find(item => item.id !== activeWorkspaceId && apiUrlOf(item) === apiUrl);
       if (duplicate) {
-        sessionStorage.setItem(`${API_KEY_STORAGE}::${duplicate.id}`, apiKey);
+        sessionStorage.setItem(apiKeyStorageKeyFor(duplicate), apiKey);
         // 追加したばかりの空ワークスペースは残さない。
         if (workspace && !workspace.primary && !workspace.apiUrl && !projects.length) {
           workspaces = workspaces.filter(item => item.id !== workspace.id);
+          cloudRemoveWorkspace(workspace.id);
         }
+        cloudUpsertWorkspace(duplicate, apiUrl, apiKey);
         closeApiModal(null);
-        switchWorkspace(duplicate.id, { skipDirtyCheck: true });
+        // 接続確認はもう済んでいるので、切り替え側では繰り返さない。
+        switchWorkspace(duplicate.id, { skipDirtyCheck: true, skipVerify: true });
         return;
       }
       if (workspace && label) {
@@ -1798,6 +1972,10 @@
       sessionStorage.setItem(apiKeyStorageKey(), apiKey);
       renderWorkspaceSwitcher();
       refreshSyncStatus();
+      // 接続できた設定だけをGoogleアカウント側にも残す。
+      cloudUpsertWorkspace(workspace, apiUrl, apiKey);
+      cloudSetActive(activeWorkspaceId);
+      cloudPersist();
       closeApiModal({ apiUrl, apiKey });
     });
     document.getElementById('api-cancel').addEventListener('click', () => closeApiModal(null));
@@ -1845,10 +2023,13 @@
       persistWorkspaces();
       renderWorkspaceSwitcher();
       toggleWorkspaceMenu(false);
+      // ワークスペースIDは変えず、表示名だけをFirestoreにも反映する。
+      cloudRenameWorkspace(workspace);
+      cloudPersist();
     });
     document.getElementById('workspace-remove').addEventListener('click', () => {
       const workspace = getActiveWorkspace();
-      if (!workspace || workspaces.length < 2) return;
+      if (!workspace) return;
       if (!confirm(`「${workspace.label}」を一覧から削除します。\nスプレッドシート側のデータは消えません。この端末に残っているこの接続の案件データは消えます。\n削除しますか？`)) return;
       [STORAGE_KEY, DIRTY_PROJECTS_KEY, LAST_REMOTE_SYNC_KEY, SYNC_SCHEMA_KEY, ANALYSIS_BACKFILL_KEY]
         .forEach(baseKey => localStorage.removeItem(workspaceKey(baseKey)));
@@ -1857,7 +2038,22 @@
       workspaces = workspaces.filter(item => item.id !== removedId);
       activeWorkspaceId = '';
       persistWorkspaces();
-      switchWorkspace(workspaces[0].id, { skipDirtyCheck: true });
+      // Firestore側の接続設定も消す。他の接続先の案件データには触れない。
+      cloudRemoveWorkspace(removedId);
+      // 残りがあれば別の接続先へ、0件なら未接続へ戻す。
+      const next = workspaces[0];
+      if (!next) {
+        cloudDoc.activeWorkspaceId = null;
+        cloudPersist();
+        reloadWorkspaceLocalState();
+        renderWorkspaceSwitcher();
+        showDashboard();
+        refreshSyncStatus();
+        requestApiConnection({ gate: true }).then(connection => { if (connection) syncWithSheets(); });
+        return;
+      }
+      cloudPersist();
+      switchWorkspace(next.id, { skipDirtyCheck: true });
     });
     document.getElementById('sync-status-pill').addEventListener('click', async () => {
       const connection = await requestApiConnection({ force: true });
@@ -2215,15 +2411,160 @@
       else showDashboard();
       suppressHistoryPush = false;
     });
-    (async function bootGate() {
-      if (location.protocol === 'file:' || getStoredApiConnection()) {
-        finishBoot();
-        return;
+    // ---- auth.js との橋渡し -------------------------------------------------
+    // 本体の起動は auth.js（Googleログイン → Firestoreからの復元）が済んでから。
+    // ここより上の既存処理には手を入れていないので、案件データ・同期・分析は
+    // これまで通りワークスペース単位のlocalStorageとApps Scriptだけで動く。
+
+    /**
+     * 初回移行：Firestoreに設定が無い状態。
+     * この端末のlocalStorageに残っている接続先のうち、接続確認が取れたものだけを
+     * Firestoreへ引き上げる。既存の設定は書き換えず、そのまま使い続ける。
+     * 接続キーはsessionStorageにしか無いため、キーが手元に無い接続先は
+     * 従来通り接続設定モーダルで入力してもらい、その時点でFirestoreへ入る。
+     */
+    async function migrateLocalWorkspacesToCloud() {
+      let migrated = 0;
+      for (const workspace of workspaces) {
+        const apiUrl = apiUrlOf(workspace);
+        const apiKey = apiKeyOf(workspace);
+        if (!apiUrl || !apiKey) continue;
+        try {
+          await verifyConnection(apiUrl, apiKey);
+        } catch (error) {
+          // 通らない接続先は保存しない。
+          continue;
+        }
+        cloudUpsertWorkspace(workspace, apiUrl, apiKey);
+        migrated += 1;
       }
-      setSyncStatus('disconnected');
-      const connection = await requestApiConnection({ gate: true });
-      if (connection) finishBoot();
-    })();
+      if (!migrated) return false;
+      cloudSetActive(activeWorkspaceId);
+      if (!cloudDoc.activeWorkspaceId) cloudSetActive(Object.keys(cloudDoc.workspaces)[0]);
+      await cloudPersist({ silent: true });
+      return true;
+    }
+
+    /** Firestoreの接続先一覧を、既存のワークスペース構造へ取り込む。 */
+    function mergeCloudWorkspaces(cloud) {
+      // 新しい端末で初めてログインすると、起動時の移行処理が空の既定ワークスペース
+      // （「メイン」）を作っている。中身が無いのにクラウド側の接続先と並ぶと
+      // 紛らわしいので、URLも案件も無い場合だけ取り除く。
+      // 既定ワークスペース（旧キーを使う枠）は端末内に1つだけにする。
+      const localPrimary = workspaces.find(workspace => workspace.primary);
+      if (localPrimary && !cloud.workspaces[localPrimary.id]
+        && !apiUrlOf(localPrimary) && !(readJson(STORAGE_KEY, []) || []).length) {
+        workspaces = workspaces.filter(workspace => workspace.id !== localPrimary.id);
+      }
+
+      Object.keys(cloud.workspaces).forEach(id => {
+        const entry = cloud.workspaces[id];
+        let workspace = workspaces.find(item => item.id === id);
+        if (!workspace) {
+          workspace = { id, label: entry.label || '新しい接続', apiUrl: entry.apiUrl || '' };
+          workspaces.push(workspace);
+        } else {
+          if (entry.label) workspace.label = entry.label;
+          if (entry.apiUrl) workspace.apiUrl = entry.apiUrl;
+        }
+        // 既定枠は1つだけ。すでに別の枠が持っているなら、この端末では通常枠にする
+        // （保存キーが衝突して、別チームの案件が混ざらないようにするため）。
+        if (entry.primary && !workspaces.some(item => item.primary && item.id !== id)) {
+          workspace.primary = true;
+        }
+        // 復元した接続キーはこの端末のsessionStorageへ。次回以降の再入力が不要になる。
+        if (entry.apiKey) sessionStorage.setItem(apiKeyStorageKeyFor(workspace), entry.apiKey);
+      });
+    }
+
+    window.SPLITLAB_APP = {
+      isConnected: () => Boolean(getStoredApiConnection()),
+
+      /** ログアウト時。端末に鍵を残さず、クラウド側の写しも捨てる。 */
+      reset() {
+        workspaces.forEach(workspace => sessionStorage.removeItem(apiKeyStorageKeyFor(workspace)));
+        cloudDoc = { activeWorkspaceId: null, workspaces: {} };
+        restoreNotice = null;
+      },
+
+      /** 未同期の案件があるまま抜けようとしたら止める。 */
+      confirmSignOut() {
+        if (!dirtyProjectIds.size) return true;
+        return confirm(`未同期の案件が${dirtyProjectIds.size}件あります。\nログアウトしてもこの端末には残りますが、先に同期しておくことをおすすめします。\nログアウトしますか？`);
+      },
+
+      /** 復元に失敗した理由を、次に開く接続設定モーダルへ持ち越す。 */
+      restoreFailed(kind, detail) {
+        restoreNotice = kind === 'firestore'
+          ? { kind: 'firestore', text: 'Firestoreへの接続に失敗したため、保存された接続先を読み込めませんでした。この端末に残っている設定で接続できます。\n' + (detail || '') }
+          : { kind: 'gas', text: String(detail || '') };
+      },
+
+      /**
+       * ログイン直後の復元。auth.js から渡されるのはFirestoreの内容だけ。
+       * ワークスペースの実体（案件・同期状態）はこれまで通り端末側にある。
+       */
+      async restoreConnection(doc) {
+        const cloud = doc && doc.workspaces && Object.keys(doc.workspaces).length ? doc : null;
+
+        if (!cloud) {
+          // Firestoreに設定が無い。既存のlocalStorage設定をそのまま使い、
+          // 接続確認が取れたものだけを移行する。
+          const migrated = await migrateLocalWorkspacesToCloud();
+          if (!migrated) return { ok: false, reason: 'none' };
+          renderWorkspaceSwitcher();
+          refreshSyncStatus();
+          return { ok: true, reason: 'migrated' };
+        }
+
+        cloudDoc = {
+          activeWorkspaceId: cloud.activeWorkspaceId || null,
+          workspaces: JSON.parse(JSON.stringify(cloud.workspaces))
+        };
+        mergeCloudWorkspaces(cloud);
+
+        const nextActiveId = cloud.activeWorkspaceId && workspaces.some(item => item.id === cloud.activeWorkspaceId)
+          ? cloud.activeWorkspaceId
+          : (workspaces.some(item => item.id === activeWorkspaceId) ? activeWorkspaceId : (workspaces[0] ? workspaces[0].id : ''));
+        const switched = nextActiveId !== activeWorkspaceId;
+        activeWorkspaceId = nextActiveId;
+        persistWorkspaces();
+        // 保存キーが変わった場合だけ、その接続先の案件を読み直す。
+        if (switched) reloadWorkspaceLocalState();
+        renderWorkspaceSwitcher();
+
+        const workspace = getActiveWorkspace();
+        const apiUrl = apiUrlOf(workspace);
+        const apiKey = apiKeyOf(workspace);
+        if (!apiUrl || !apiKey) {
+          refreshSyncStatus();
+          return { ok: false, reason: 'none' };
+        }
+        try {
+          await verifyConnection(apiUrl, apiKey);
+        } catch (error) {
+          // Apps Script側の失敗。Firestoreの失敗とは分けて伝える。
+          this.restoreFailed('gas', `保存された接続先「${workspace.label}」へ接続できませんでした（Apps Script）。\nデプロイをやり直した場合は、新しいURLと接続キーを入れ直してください。\n${error.message}`);
+          refreshSyncStatus();
+          return { ok: false, reason: 'gas' };
+        }
+        cloudSetActive(activeWorkspaceId);
+        restoreNotice = null;
+        refreshSyncStatus();
+        return { ok: true };
+      },
+
+      /** 認証と復元が済んでからの本体起動。従来の接続ゲートはそのまま。 */
+      start() {
+        if (location.protocol === 'file:' || getStoredApiConnection()) {
+          finishBoot();
+          return;
+        }
+        setSyncStatus('disconnected');
+        requestApiConnection({ gate: true }).then(connection => { if (connection) finishBoot(); });
+      }
+    };
+
 
     setInterval(() => {
       if (document.visibilityState === 'visible') syncWithSheets({ silent: true, poll: true });
