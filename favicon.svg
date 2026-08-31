@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SPLITLAB">
+  <rect width="64" height="64" rx="14" fill="#11141c"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="#8fadc7" stroke-opacity=".35" stroke-width="3"/>
+  <!-- 分け前を2つに割ったマーク。左＝A（tada）／右＝B（riku）。 -->
+  <path d="M16 16h11v32H16z" fill="#8fadc7"/>
+  <path d="M37 16h11v32H37z" fill="#9c7a54"/>
+</svg>
