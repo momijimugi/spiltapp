@@ -66,6 +66,12 @@ function doPost(event) {
     const parameters = event && event.parameter ? event.parameter : {};
     authorize_(parameters.apiKey || '');
     const payload = JSON.parse(parameters.payload || 'null');
+    // 接続確認専用。案件データは一切読まないので即答できる。
+    // ここへ来た時点で authorize_ を通っているため接続キーは検証済み。
+    // スプレッドシートは開くだけ（全行読み込みはしない）でSHEET_IDの誤りも拾う。
+    if (parameters.action === 'ping') {
+      return json_({ ok: true, service: 'SPLITLAB Sheets API', version: 3, sheet: getSpreadsheet_().getName() });
+    }
     if (parameters.action === 'sync') {
       if (!Array.isArray(payload)) throw new Error('Payload must be an array.');
       return json_({ ok: true, projects: syncProjects_(payload) });

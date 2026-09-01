@@ -38,9 +38,19 @@
     // ---- バージョンとパッチノート ---------------------------------------
     // 新しい版を出すときは APP_VERSION を上げ、CHANGELOG の先頭へ追記する。
     // 保存済みバージョンと違えば、次に開いたときに更新のお知らせが出る。
-    const APP_VERSION = '1.5.0';
+    const APP_VERSION = '1.5.1';
     const SEEN_VERSION_KEY = 'splitlab_seen_version';
     const CHANGELOG = [
+      {
+        version: '1.5.1',
+        date: '2026-09-01',
+        title: 'ログイン後の接続を速く、進み具合が見えるように',
+        items: [
+          { type: 'fix', text: 'ログイン後の接続確認が速くなりました。これまでは接続を確かめるためだけにスプレッドシート全体を読んでいて、そのあと本番の同期でもう一度読んでいました。確認は接続できるかだけを見る軽い通信に変えています。' },
+          { type: 'new', text: '「接続しています」の画面に進捗バーを追加。いま何を待っているのか（接続先の読み込み／Apps Scriptへの接続確認）が分かります。' },
+          { type: 'note', text: 'この速度改善をすべて効かせるには、Apps Scriptを最新のCode.gsで再デプロイしてください。未対応のままでも従来どおり接続できます。' }
+        ]
+      },
       {
         version: '1.5.0',
         date: '2026-08-31',
@@ -1351,6 +1361,12 @@
       return cloudSaveChain;
     }
 
+    // 復元中の進捗表示（ログイン画面側のバー）。auth.jsが無ければ何もしない。
+    function reportRestoreProgress(percent, phase) {
+      const auth = window.SPLITLAB_AUTH;
+      if (auth && typeof auth.progress === 'function') auth.progress(percent, phase);
+    }
+
     /** 接続確認に成功した接続先を1件だけ保存する。 */
     function cloudSaveWorkspace(workspace, apiUrl, apiKey, options = {}) {
       if (!workspace || !apiUrl || !apiKey) return Promise.resolve(false);
@@ -1420,19 +1436,24 @@
     }
 
     /**
-     * 接続確認。Apps Scriptへ空の差分同期を投げ、URLと接続キーが通ることだけを見る。
-     * 案件は1件も送らないので、この呼び出しで別シートへデータが渡ることはない。
+     * 接続確認。案件データを1件も送受信しない ping で、URLと接続キーだけを見る。
+     *
+     * 以前は空の差分同期（syncDelta）を投げていたが、Apps Script側は since に
+     * 関係なく3シート全行を読むため、実質フル同期1回分の時間がかかっていた。
+     * 直後に本物の同期が走るので、同じ重い処理を2回していたことになる。
+     *
+     * Apps Scriptを再デプロイしていない古い接続先では ping が未実装だが、
+     * その場合でも「Unsupported action.」が返る時点で authorize_ は通っている。
+     * つまりURLと接続キーは正しいので、確認できたものとして扱う。
      */
     async function verifyConnection(apiUrl, apiKey) {
       if (!apiUrl || !apiKey) throw new Error('Apps ScriptのURLと接続キーが未設定です。');
-      const payload = { changes: [], since: new Date().toISOString(), full: false };
-      const body = new URLSearchParams({ action: 'syncDelta', apiKey, payload: JSON.stringify(payload) });
+      const body = new URLSearchParams({ action: 'ping', apiKey, payload: 'null' });
       const result = await postToAppsScript(apiUrl, body, { timeoutMs: 20000, timeoutLabel: '接続確認' });
-      if (!result.ok) {
-        if (result.error === 'Unsupported action.') throw new Error('Apps Scriptが旧バージョンです。最新のCode.gsを新しいバージョンとして再デプロイしてください。');
-        throw new Error(result.error || '接続確認に失敗しました。');
-      }
-      return true;
+      if (result.ok) return true;
+      // 古いCode.gsのまま。認証は通っているので接続先としては使える。
+      if (result.error === 'Unsupported action.') return true;
+      throw new Error(result.error || '接続確認に失敗しました。');
     }
 
     const SYNC_STATUS_META = {
@@ -2455,11 +2476,15 @@
      */
     async function migrateLocalWorkspacesToCloud() {
       let migrated = 0;
+      let checked = 0;
       const pending = {};
-      for (const workspace of workspaces) {
+      const candidates = workspaces.filter(workspace => apiUrlOf(workspace) && apiKeyOf(workspace));
+      for (const workspace of candidates) {
         const apiUrl = apiUrlOf(workspace);
         const apiKey = apiKeyOf(workspace);
-        if (!apiUrl || !apiKey) continue;
+        checked += 1;
+        reportRestoreProgress(60 + Math.round((checked / (candidates.length + 1)) * 35),
+          `この端末の接続先を移行しています（${checked}/${candidates.length}）`);
         try {
           await verifyConnection(apiUrl, apiKey);
         } catch (error) {
@@ -2577,6 +2602,7 @@
           refreshSyncStatus();
           return { ok: false, reason: 'none' };
         }
+        reportRestoreProgress(75, `「${workspace.label}」へ接続を確認しています`);
         try {
           await verifyConnection(apiUrl, apiKey);
         } catch (error) {
@@ -2585,6 +2611,7 @@
           refreshSyncStatus();
           return { ok: false, reason: 'gas' };
         }
+        reportRestoreProgress(95, `「${workspace.label}」に接続しました`);
         cloudSetActive(activeWorkspaceId);
         restoreNotice = null;
         refreshSyncStatus();

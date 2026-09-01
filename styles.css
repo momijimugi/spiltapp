@@ -632,3 +632,34 @@ html[data-auth="error"] .grid-noise { display: none; }
 @media (max-width: 640px) {
   .auth-user-name { display: none; }
 }
+
+/* 接続設定の復元中に出す進捗。全件取得の進捗バーと同じ見え方に揃える。 */
+.restore-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+}
+.restore-head .auth-lead { margin-top: .9rem; }
+.restore-percent {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-text);
+  flex-shrink: 0;
+}
+.restore-track {
+  margin-top: .75rem;
+  height: .5rem;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  overflow: hidden;
+}
+.restore-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--accent-text);
+  transition: width .35s ease;
+}

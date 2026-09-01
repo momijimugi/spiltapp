@@ -21,7 +21,7 @@
    既存localStorageの接続設定での手動接続へフォールバックする。
    ========================================================================== */
 
-import { firebaseConfig, isFirebaseConfigured } from './firebase-config.js?v=11';
+import { firebaseConfig, isFirebaseConfigured } from './firebase-config.js?v=12';
 
 // Firebase公式のブラウザ向けES Modules。ビルド環境（npm/Vite）は使わない。
 const SDK = 'https://www.gstatic.com/firebasejs/10.14.1';
@@ -37,6 +37,22 @@ const SETTINGS_COLLECTION = 'appSettings';
 const SETTINGS_DOC = 'splitapp';
 
 const $ = (id) => document.getElementById(id);
+
+/**
+ * 復元中の進捗表示。何を待っているのかが分かるように、段階と割合を出す。
+ * 進むだけで戻らない（percentは単調増加）ようにしておく。
+ */
+let restorePercent = 0;
+function setRestoreProgress(percent, phase) {
+  restorePercent = Math.max(restorePercent, Math.min(100, Math.round(percent)));
+  const bar = $('auth-restore-bar');
+  const label = $('auth-restore-percent');
+  const text = $('auth-restore-phase');
+  if (bar) bar.style.width = `${restorePercent}%`;
+  if (label) label.textContent = `${restorePercent}%`;
+  if (phase && text) text.textContent = phase;
+}
+
 const setAuthState = (state) => {
   document.documentElement.dataset.auth = state;
   // 起動が止まっていないことをウォッチドッグ（index.html）へ知らせる。
@@ -56,6 +72,8 @@ window.SPLITLAB_AUTH = {
    * 呼び出し側は今まで通り localStorage / sessionStorage だけで動く。
    */
   settings: unavailableSettings(),
+  /** 復元中の進捗表示。app.js の復元処理から段階を進める。 */
+  progress: setRestoreProgress,
   onChange(fn) {
     if (typeof fn !== 'function') return () => {};
     listeners.push(fn);
@@ -155,6 +173,8 @@ async function boot() {
     await authMod.setPersistence(auth, authMod.browserLocalPersistence);
 
     window.SPLITLAB_AUTH.enabled = true;
+    // 読み込みだけ先に始めておく。ログイン確定後にまとめて待たないで済む。
+    loadFirestore(app).catch(() => {});
 
     authMod.onAuthStateChanged(auth, (user) => {
       showError('');
@@ -169,10 +189,13 @@ async function boot() {
       attachSettings(app, user.uid);
       // 保存された接続設定があれば、本体を出す前に復元と接続確認を済ませる。
       // 接続画面が一瞬出てから消える、という見え方にしないため。
+      restorePercent = 0;
+      setRestoreProgress(12, 'ログインを確認しました');
       setAuthState('restoring');
       restoreConnection()
         .catch((e) => console.error('[SPLITLAB] 接続設定の復元に失敗', e))
         .finally(() => {
+          setRestoreProgress(100, '完了しました');
           setAuthState('in');
           startApp();
         });
@@ -464,7 +487,9 @@ async function restoreConnection() {
   const app = window.SPLITLAB_APP;
   if (!app || typeof app.restoreConnection !== 'function') return;
 
+  setRestoreProgress(28, '保存された接続先を読み込んでいます');
   const res = await window.SPLITLAB_AUTH.settings.load();
+  setRestoreProgress(55, '接続先を確認しています');
   if (!res.ok) {
     // Firestoreが読めない。Apps Scriptの失敗とは区別して伝える。
     app.restoreFailed('firestore', (res.error && res.error.message) || '');

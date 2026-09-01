@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=11">
+  <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body class="min-h-screen text-slate-100 antialiased selection:bg-acid selection:text-ink">
   <!-- ============ AUTH GATE ============
@@ -35,7 +35,15 @@
   </div>
 
   <div id="auth-restoring" class="auth-screen">
-    <p class="auth-checking-note">接続設定を復元しています…</p>
+    <div class="auth-card" role="status" aria-live="polite">
+      <span class="auth-mark">SL</span>
+      <h1 class="auth-title">接続しています</h1>
+      <div class="restore-head">
+        <p id="auth-restore-phase" class="auth-lead">準備しています</p>
+        <p id="auth-restore-percent" class="restore-percent">0%</p>
+      </div>
+      <div class="restore-track"><div id="auth-restore-bar" class="restore-bar"></div></div>
+    </div>
   </div>
 
   <div id="auth-gate" class="auth-screen">
@@ -446,8 +454,8 @@
     </div>
   </div>
 
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
   <!-- 認証はESモジュール。app.js の後に実行され、ログイン後に SPLITLAB_APP.start() を呼ぶ。 -->
-  <script type="module" src="auth.js?v=11"></script>
+  <script type="module" src="auth.js?v=12"></script>
 </body>
 </html>
